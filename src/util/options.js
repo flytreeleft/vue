@@ -244,6 +244,7 @@ function guardComponents (options) {
       if (isPlainObject(def)) {
         components[key] = Vue.extend(def)
       }
+      components[key.toLowerCase()] = components[key]
     }
   }
 }

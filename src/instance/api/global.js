@@ -97,6 +97,7 @@ export default function (Vue) {
     // enable recursive self-lookup
     if (name) {
       Sub.options.components[name] = Sub
+      Sub.options.components[name.toLowerCase()] = Sub
     }
     // cache constructor
     if (isFirstExtend) {
@@ -178,12 +179,12 @@ export default function (Vue) {
             )
           }
         }
-        if (
-          type === 'component' &&
-          isPlainObject(definition)
-        ) {
-          definition.name = id
-          definition = Vue.extend(definition)
+        if (type === 'component') {
+          if (isPlainObject(definition)) {
+            definition.name = id
+            definition = Vue.extend(definition)
+          }
+          this.options[type + 's'][id.toLowerCase()] = definition
         }
         this.options[type + 's'][id] = definition
         return definition
