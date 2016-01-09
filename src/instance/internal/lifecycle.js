@@ -131,12 +131,13 @@ export default function (Vue) {
    * @param {Vue} [host] - transclusion host component
    * @param {Object} [scope] - v-for scope
    * @param {Fragment} [frag] - owner fragment
+   * @return {Directive}
    */
 
   Vue.prototype._bindDir = function (descriptor, node, host, scope, frag) {
-    this._directives.push(
-      new Directive(descriptor, this, node, host, scope, frag)
-    )
+    var dir = new Directive(descriptor, this, node, host, scope, frag)
+    this._directives.push(dir)
+    return dir
   }
 
   /**

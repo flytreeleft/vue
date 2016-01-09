@@ -1,4 +1,8 @@
-import { _toString } from '../../util/index'
+import {
+  isObject,
+  _toString,
+  replace
+} from '../../util/index'
 
 export default {
 
@@ -9,6 +13,10 @@ export default {
   },
 
   update (value) {
-    this.el[this.attr] = _toString(value)
+    if (value && value._isVue) {
+      replace(this.el, value.$el)
+    } else {
+      this.el[this.attr] = _toString(value)
+    }
   }
 }

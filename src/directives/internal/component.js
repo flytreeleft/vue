@@ -224,6 +224,19 @@ export default {
       if (extraOptions) {
         extend(options, extraOptions)
       }
+      if (this.descriptor.children) {
+        var children = [];
+        for (var i = 0, len = this.descriptor.children.length; i < len; i++) {
+          var child = this.descriptor.children[i];
+          children.push(child.childVM);
+        }
+        (options.props || (options.props = {})).children = {
+          type: Array,
+          'default': function() {
+            return children;
+          }
+        };
+      }
       var child = new this.Component(options)
       if (this.keepAlive) {
         this.cache[this.Component.cid] = child

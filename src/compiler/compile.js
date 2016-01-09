@@ -83,8 +83,15 @@ export function compile (el, options, partial) {
     var childNodes = toArray(el.childNodes)
     // link
     var dirs = linkAndCapture(function compositeLinkCapturer () {
-      if (nodeLinkFn) nodeLinkFn(vm, el, host, scope, frag)
-      if (childLinkFn) childLinkFn(vm, childNodes, host, scope, frag)
+      var nodeDir, childDirs
+      // link children first for rendering them before their parent
+      if (childLinkFn) {
+        childDirs = childLinkFn(vm, childNodes, host, scope, frag)
+      }
+      if (nodeLinkFn) {
+        nodeDir = nodeLinkFn(vm, el, host, scope, frag)
+      }
+      linkDirective(nodeDir, childDirs)
     }, vm)
     return makeUnlinkFn(vm, dirs)
   }
@@ -491,20 +498,43 @@ function compileNodeList (nodeList, options) {
 
 function makeChildLinkFn (linkFns) {
   return function childLinkFn (vm, nodes, host, scope, frag) {
-    var node, nodeLinkFn, childrenLinkFn
+    var node, nodeLinkFn, childrenLinkFn, nodeDirs = []
     for (var i = 0, n = 0, l = linkFns.length; i < l; n++) {
       node = nodes[n]
       nodeLinkFn = linkFns[i++]
       childrenLinkFn = linkFns[i++]
       // cache childNodes before linking parent, fix #657
       var childNodes = toArray(node.childNodes)
-      if (nodeLinkFn) {
-        nodeLinkFn(vm, node, host, scope, frag)
-      }
+      var nodeDir, childDirs;
+      // link children first for rendering them before their parent
       if (childrenLinkFn) {
-        childrenLinkFn(vm, childNodes, host, scope, frag)
+        childDirs = childrenLinkFn(vm, childNodes, host, scope, frag)
       }
+      if (nodeLinkFn) {
+        nodeDir = nodeLinkFn(vm, node, host, scope, frag)
+        nodeDir && nodeDirs.push(nodeDir)
+      }
+      linkDirective(nodeDir, childDirs)
     }
+    return nodeDirs;
+  }
+}
+
+/**
+ * Link parent directive and child directives
+ *
+ * @param {Object} parentDir - parent directive
+ * @param {Array} childDirs - child directives
+ */
+
+function linkDirective(parentDir, childDirs) {
+  var childDir
+  var i = childDirs && parentDir ? childDirs.length : 0;
+  while (i--) {
+    childDir = childDirs[i]
+
+    !childDir.descriptor.parent && (childDir.descriptor.parent = parentDir) &&
+    (parentDir.descriptor.children || (parentDir.descriptor.children = [])).push(childDir)
   }
 }
 
@@ -556,9 +586,9 @@ function checkComponent (el, options) {
       if (ref) {
         defineReactive((scope || vm).$refs, ref, null)
       }
-      vm._bindDir(descriptor, el, host, scope, frag)
+      return vm._bindDir(descriptor, el, host, scope, frag)
     }
-    componentLinkFn.terminal = true
+    componentLinkFn.terminal = false // continue to compile child components
     return componentLinkFn
   }
 }
