@@ -57,7 +57,8 @@ export default function (Vue) {
   Vue.prototype._initProps = function () {
     var options = this.$options
     var el = options.el
-    var props = options.props
+    // allow merging the attributes of the root element
+    var props = options.props || {}
     if (props && !el) {
       process.env.NODE_ENV !== 'production' && warn(
         'Props will not be compiled if no `el` option is ' +

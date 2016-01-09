@@ -2,6 +2,7 @@ import config from '../config'
 import { parseDirective } from '../parsers/directive'
 import propDef from '../directives/internal/prop'
 import {
+  extend,
   warn,
   camelize,
   hyphenate,
@@ -22,6 +23,8 @@ const empty = {}
 // regexes
 const identRE = /^[$_a-zA-Z]+[\w$]*$/
 const settablePathRE = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*|\[[^\[\]]+\])*$/
+// the attributes of a root element that not allowed to be merged
+const disallowedMergedAttrRE = /^_|^v-|^@|^(class|style|children|is|transition|transition-mode|debounce|track-by|stagger|enter-stagger|leave-stagger)$/
 
 /**
  * Compile props on a root element and return
@@ -34,12 +37,13 @@ const settablePathRE = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*|\[[^\[\]]+\])*$/
 
 export function compileProps (el, propOptions) {
   var props = []
-  var names = Object.keys(propOptions)
+  var mergedOptions = mergeProps(el, propOptions)
+  var names = Object.keys(mergedOptions)
   var i = names.length
   var options, name, attr, value, path, parsed, prop
   while (i--) {
     name = names[i]
-    options = propOptions[name] || empty
+    options = mergedOptions[name] || empty
 
     if (process.env.NODE_ENV !== 'production' && name === '$data') {
       warn('Do not use $data as prop.')
@@ -125,6 +129,29 @@ export function compileProps (el, propOptions) {
     props.push(prop)
   }
   return makePropsLinkFn(props)
+}
+
+/**
+ * Merge attributes of a root element to propOptions
+ * and return a new options.
+ *
+ * @param {Element|DocumentFragment} el
+ * @param {Array} propOptions
+ * @return {Array} options
+ */
+
+function mergeProps(el, propOptions) {
+  var options = extend({}, propOptions)
+  var attrs = el.attributes
+  var i = attrs.length
+  while (i--) {
+    var name = attrs[i].name.replace(':', '')
+    if (!disallowedMergedAttrRE.test(name) &&
+        !options[name]) {
+      options[name] = {}
+    }
+  }
+  return options
 }
 
 /**
