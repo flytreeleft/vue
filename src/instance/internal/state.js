@@ -79,10 +79,11 @@ export default function (Vue) {
 
   Vue.prototype._initData = function () {
     var propsData = this._data
-    var optionsDataFn = this.$options.data
+    // NOTE: keep old mechanism
+    var optionsDataFn = this.$options.data || this.$options.state
     var optionsData = optionsDataFn && optionsDataFn()
     if (optionsData) {
-      this._data = optionsData
+      this.state = this._data = optionsData // NOTE: keep old mechanism
       for (var prop in propsData) {
         if (process.env.NODE_ENV !== 'production' &&
             hasOwn(optionsData, prop)) {
@@ -119,7 +120,7 @@ export default function (Vue) {
   Vue.prototype._setData = function (newData) {
     newData = newData || {}
     var oldData = this._data
-    this._data = newData
+    this.state = this._data = newData // NOTE: keep old mechanism
     var keys, key, i
     // unproxy keys not present in new data
     keys = Object.keys(oldData)

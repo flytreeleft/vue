@@ -93,7 +93,9 @@ export default function (Vue) {
 
     // initialize data as empty object.
     // it will be filled up in _initScope().
-    this._data = {}
+    // NOTE: keep old mechanism
+    this.state = this._data = {}
+    this.props = {}
 
     // call init hook
     this._callHook('init')
