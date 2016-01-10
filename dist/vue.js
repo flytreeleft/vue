@@ -1,6 +1,6 @@
 /*!
  * Vue.js v1.0.13
- * (c) 2015 Evan You
+ * (c) 2016 Evan You
  * Released under the MIT License.
  */
 (function (global, factory) {
@@ -796,16 +796,17 @@
    * into one single expression as '"a " + b + " c"'.
    *
    * @param {Array} tokens
+   * @param {Vue} [vm]
    * @return {String}
    */
 
-  function tokensToExp(tokens) {
+  function tokensToExp(tokens, vm) {
     if (tokens.length > 1) {
       return tokens.map(function (token) {
-        return formatToken(token);
+        return formatToken(token, vm);
       }).join('+');
     } else {
-      return formatToken(tokens[0], true);
+      return formatToken(tokens[0], vm, true);
     }
   }
 
@@ -813,12 +814,13 @@
    * Format a single token.
    *
    * @param {Object} token
-   * @param {Boolean} single
+   * @param {Vue} [vm]
+   * @param {Boolean} [single]
    * @return {String}
    */
 
-  function formatToken(token, single) {
-    return token.tag ? inlineFilters(token.value, single) : '"' + token.value + '"';
+  function formatToken(token, vm, single) {
+    return token.tag ? token.oneTime && vm ? '"' + vm.$eval(token.value) + '"' : inlineFilters(token.value, single) : '"' + token.value + '"';
   }
 
   /**
@@ -1508,7 +1510,8 @@
   function initProp(vm, prop, value) {
     var key = prop.path;
     value = coerceProp(prop, value);
-    vm[key] = vm._data[key] = assertProp(prop, value) ? value : undefined;
+    // NOTE: keep old mechanism
+    vm[key] = vm.props[key] = vm._data[key] = assertProp(prop, value) ? value : undefined;
   }
 
   /**
@@ -1623,10 +1626,12 @@
   }
 
   /**
-   * Data
+   * Data and State
+   *
+   * NOTE: keep old mechanism
    */
 
-  strats.data = function (parentVal, childVal, vm) {
+  strats.state = strats.data = function (parentVal, childVal, vm) {
     if (!vm) {
       // in a Vue.extend merge, both should be functions
       if (!childVal) {
@@ -1775,6 +1780,7 @@
         if (isPlainObject(def)) {
           components[key] = Vue.extend(def);
         }
+        components[key.toLowerCase()] = components[key];
       }
     }
   }
@@ -2389,7 +2395,9 @@
 
       // initialize data as empty object.
       // it will be filled up in _initScope().
-      this._data = {};
+      // NOTE: keep old mechanism
+      this.state = this._data = {};
+      this.props = {};
 
       // call init hook
       this._callHook('init');
@@ -3518,17 +3526,24 @@
         this.deep = true;
       }
       // handle interpolation bindings
-      if (this.descriptor.interp) {
+      var descriptor = this.descriptor;
+      var tokens = descriptor.interp;
+      if (tokens) {
+        // handle interpolations with one-time tokens
+        if (descriptor.hasOneTime) {
+          this.expression = tokensToExp(tokens, this._scope || this.vm);
+        }
+
         // only allow binding on native attributes
         if (disallowedInterpAttrRE.test(attr) || attr === 'name' && (tag === 'PARTIAL' || tag === 'SLOT')) {
-          'development' !== 'production' && warn(attr + '="' + this.descriptor.raw + '": ' + 'attribute interpolation is not allowed in Vue.js ' + 'directives and special attributes.');
+          'development' !== 'production' && warn(attr + '="' + descriptor.raw + '": ' + 'attribute interpolation is not allowed in Vue.js ' + 'directives and special attributes.');
           this.el.removeAttribute(attr);
           this.invalid = true;
         }
 
         /* istanbul ignore if */
         if ('development' !== 'production') {
-          var raw = attr + '="' + this.descriptor.raw + '": ';
+          var raw = attr + '="' + descriptor.raw + '": ';
           // warn src
           if (attr === 'src') {
             warn(raw + 'interpolation in "src" attribute will cause ' + 'a 404 request. Use v-bind:src instead.');
@@ -3944,7 +3959,7 @@
       // prevent messing with the input when user is typing,
       // and force update on blur.
       this.focused = false;
-      if (!isRange) {
+      if (!isRange && !lazy) {
         this.on('focus', function () {
           self.focused = true;
         });
@@ -4436,23 +4451,12 @@
 
   Fragment.prototype.callHook = function (hook) {
     var i, l;
-    for (i = 0, l = this.children.length; i < l; i++) {
-      hook(this.children[i]);
-    }
     for (i = 0, l = this.childFrags.length; i < l; i++) {
       this.childFrags[i].callHook(hook);
     }
-  };
-
-  /**
-   * Destroy the fragment.
-   */
-
-  Fragment.prototype.destroy = function () {
-    if (this.parentFrag) {
-      this.parentFrag.childFrags.$remove(this);
+    for (i = 0, l = this.children.length; i < l; i++) {
+      hook(this.children[i]);
     }
-    this.unlink();
   };
 
   /**
@@ -4479,7 +4483,7 @@
     this.inserted = false;
     var shouldCallRemove = inDoc(this.node);
     var self = this;
-    self.callHook(destroyChild);
+    this.beforeRemove();
     removeWithTransition(this.node, this.vm, function () {
       if (shouldCallRemove) {
         self.callHook(detach);
@@ -4515,7 +4519,7 @@
     this.inserted = false;
     var self = this;
     var shouldCallRemove = inDoc(this.node);
-    self.callHook(destroyChild);
+    this.beforeRemove();
     removeNodeRange(this.node, this.end, this.vm, this.frag, function () {
       if (shouldCallRemove) {
         self.callHook(detach);
@@ -4523,6 +4527,45 @@
       self.destroy();
     });
   }
+
+  /**
+   * Prepare the fragment for removal.
+   */
+
+  Fragment.prototype.beforeRemove = function () {
+    var i, l;
+    for (i = 0, l = this.childFrags.length; i < l; i++) {
+      // call the same method recursively on child
+      // fragments, depth-first
+      this.childFrags[i].beforeRemove(false);
+    }
+    for (i = 0, l = this.children.length; i < l; i++) {
+      // Call destroy for all contained instances,
+      // with remove:false and defer:true.
+      // Defer is necessary because we need to
+      // keep the children to call detach hooks
+      // on them.
+      this.children[i].$destroy(false, true);
+    }
+    var dirs = this.unlink.dirs;
+    for (i = 0, l = dirs.length; i < l; i++) {
+      // disable the watchers on all the directives
+      // so that the rendered content stays the same
+      // during removal.
+      dirs[i]._watcher && dirs[i]._watcher.teardown();
+    }
+  };
+
+  /**
+   * Destroy the fragment.
+   */
+
+  Fragment.prototype.destroy = function () {
+    if (this.parentFrag) {
+      this.parentFrag.childFrags.$remove(this);
+    }
+    this.unlink();
+  };
 
   /**
    * Call attach hook for a Vue instance.
@@ -4534,20 +4577,6 @@
     if (!child._isAttached) {
       child._callHook('attached');
     }
-  }
-
-  /**
-   * Call destroy for all contained instances,
-   * with remove:false and defer:true.
-   * Defer is necessary because we need to
-   * keep the children to call detach hooks
-   * on them.
-   *
-   * @param {Vue} child
-   */
-
-  function destroyChild(child) {
-    child.$destroy(false, true);
   }
 
   /**
@@ -5276,7 +5305,11 @@
     },
 
     update: function update(value) {
-      this.el[this.attr] = _toString(value);
+      if (value && value._isVue) {
+        replace(this.el, value.$el);
+      } else {
+        this.el[this.attr] = _toString(value);
+      }
     }
   };
 
@@ -5330,8 +5363,8 @@
     return f;
   }
 
-  var TYPE_TRANSITION = 1;
-  var TYPE_ANIMATION = 2;
+  var TYPE_TRANSITION = 'transition';
+  var TYPE_ANIMATION = 'animation';
   var transDurationProp = transitionProp + 'Duration';
   var animDurationProp = animationProp + 'Duration';
 
@@ -5347,8 +5380,8 @@
   function Transition(el, id, hooks, vm) {
     this.id = id;
     this.el = el;
-    this.enterClass = id + '-enter';
-    this.leaveClass = id + '-leave';
+    this.enterClass = hooks && hooks.enterClass || id + '-enter';
+    this.leaveClass = hooks && hooks.leaveClass || id + '-leave';
     this.hooks = hooks;
     this.vm = vm;
     // async state
@@ -5356,6 +5389,14 @@
     this.justEntered = false;
     this.entered = this.left = false;
     this.typeCache = {};
+    // check css transition type
+    this.type = hooks && hooks.type;
+    /* istanbul ignore if */
+    if ('development' !== 'production') {
+      if (this.type && this.type !== TYPE_TRANSITION && this.type !== TYPE_ANIMATION) {
+        warn('invalid CSS transition type for transition="' + this.id + '": ' + this.type);
+      }
+    }
     // bind
     var self = this;['enterNextTick', 'enterDone', 'leaveNextTick', 'leaveDone'].forEach(function (m) {
       self[m] = bind$1(self[m], self);
@@ -5615,7 +5656,7 @@
     isHidden(this.el)) {
       return;
     }
-    var type = this.typeCache[className];
+    var type = this.type || this.typeCache[className];
     if (type) return type;
     var inlineStyles = this.el.style;
     var computedStyles = window.getComputedStyle(this.el);
@@ -5949,6 +5990,19 @@
         if (extraOptions) {
           extend(options, extraOptions);
         }
+        if (this.descriptor.children) {
+          var children = [];
+          for (var i = 0, len = this.descriptor.children.length; i < len; i++) {
+            var child = this.descriptor.children[i];
+            children.push(child.childVM);
+          }
+          (options.props || (options.props = {})).children = {
+            type: Array,
+            'default': function _default() {
+              return children;
+            }
+          };
+        }
         var child = new this.Component(options);
         if (this.keepAlive) {
           this.cache[this.Component.cid] = child;
@@ -6159,6 +6213,8 @@
   // regexes
   var identRE$1 = /^[$_a-zA-Z]+[\w$]*$/;
   var settablePathRE = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*|\[[^\[\]]+\])*$/;
+  // the attributes of a root element that not allowed to be merged
+  var disallowedMergedAttrRE = /^_|^v-|^@|^(class|style|children|is|transition|transition-mode|debounce|track-by|stagger|enter-stagger|leave-stagger)$/;
 
   /**
    * Compile props on a root element and return
@@ -6171,12 +6227,13 @@
 
   function compileProps(el, propOptions) {
     var props = [];
-    var names = Object.keys(propOptions);
+    var mergedOptions = mergeProps(el, propOptions);
+    var names = Object.keys(mergedOptions);
     var i = names.length;
     var options, name, attr, value, path, parsed, prop;
     while (i--) {
       name = names[i];
-      options = propOptions[name] || empty;
+      options = mergedOptions[name] || empty;
 
       if ('development' !== 'production' && name === '$data') {
         warn('Do not use $data as prop.');
@@ -6216,7 +6273,7 @@
         value = parsed.expression;
         prop.filters = parsed.filters;
         // check binding type
-        if (isLiteral(value)) {
+        if (isLiteral(value) && !parsed.filters) {
           // for expressions containing literal numbers and
           // booleans, there's no need to setup a prop binding,
           // so we can optimize them as a one-time set.
@@ -6246,6 +6303,28 @@
       props.push(prop);
     }
     return makePropsLinkFn(props);
+  }
+
+  /**
+   * Merge attributes of a root element to propOptions
+   * and return a new options.
+   *
+   * @param {Element|DocumentFragment} el
+   * @param {Array} propOptions
+   * @return {Array} options
+   */
+
+  function mergeProps(el, propOptions) {
+    var options = extend({}, propOptions);
+    var attrs = el.attributes;
+    var i = attrs.length;
+    while (i--) {
+      var name = attrs[i].name.replace(':', '');
+      if (!disallowedMergedAttrRE.test(name) && !options[name]) {
+        options[name] = {};
+      }
+    }
+    return options;
   }
 
   /**
@@ -6380,8 +6459,15 @@
       var childNodes = toArray(el.childNodes);
       // link
       var dirs = linkAndCapture(function compositeLinkCapturer() {
-        if (nodeLinkFn) nodeLinkFn(vm, el, host, scope, frag);
-        if (childLinkFn) childLinkFn(vm, childNodes, host, scope, frag);
+        var nodeDir, childDirs;
+        // link children first for rendering them before their parent
+        if (childLinkFn) {
+          childDirs = childLinkFn(vm, childNodes, host, scope, frag);
+        }
+        if (nodeLinkFn) {
+          nodeDir = nodeLinkFn(vm, el, host, scope, frag);
+        }
+        linkDirective(nodeDir, childDirs);
       }, vm);
       return makeUnlinkFn(vm, dirs);
     };
@@ -6435,12 +6521,15 @@
    */
 
   function makeUnlinkFn(vm, dirs, context, contextDirs) {
-    return function unlink(destroying) {
+    function unlink(destroying) {
       teardownDirs(vm, dirs, destroying);
       if (context && contextDirs) {
         teardownDirs(context, contextDirs);
       }
-    };
+    }
+    // expose linked directives
+    unlink.dirs = dirs;
+    return unlink;
   }
 
   /**
@@ -6536,6 +6625,7 @@
       }
     }
 
+    options._containerAttrs = options._replacerAttrs = null;
     return function rootLinkFn(vm, el, scope) {
       // link context scope dirs
       var context = vm._context;
@@ -6767,21 +6857,46 @@
 
   function makeChildLinkFn(linkFns) {
     return function childLinkFn(vm, nodes, host, scope, frag) {
-      var node, nodeLinkFn, childrenLinkFn;
+      var node,
+          nodeLinkFn,
+          childrenLinkFn,
+          nodeDirs = [];
       for (var i = 0, n = 0, l = linkFns.length; i < l; n++) {
         node = nodes[n];
         nodeLinkFn = linkFns[i++];
         childrenLinkFn = linkFns[i++];
         // cache childNodes before linking parent, fix #657
         var childNodes = toArray(node.childNodes);
-        if (nodeLinkFn) {
-          nodeLinkFn(vm, node, host, scope, frag);
-        }
+        var nodeDir, childDirs;
+        // link children first for rendering them before their parent
         if (childrenLinkFn) {
-          childrenLinkFn(vm, childNodes, host, scope, frag);
+          childDirs = childrenLinkFn(vm, childNodes, host, scope, frag);
         }
+        if (nodeLinkFn) {
+          nodeDir = nodeLinkFn(vm, node, host, scope, frag);
+          nodeDir && nodeDirs.push(nodeDir);
+        }
+        linkDirective(nodeDir, childDirs);
       }
+      return nodeDirs;
     };
+  }
+
+  /**
+   * Link parent directive and child directives
+   *
+   * @param {Object} parentDir - parent directive
+   * @param {Array} childDirs - child directives
+   */
+
+  function linkDirective(parentDir, childDirs) {
+    var childDir;
+    var i = childDirs && parentDir ? childDirs.length : 0;
+    while (i--) {
+      childDir = childDirs[i];
+
+      !childDir.descriptor.parent && (childDir.descriptor.parent = parentDir) && (parentDir.descriptor.children || (parentDir.descriptor.children = [])).push(childDir);
+    }
   }
 
   /**
@@ -6832,9 +6947,9 @@
         if (ref) {
           defineReactive((scope || vm).$refs, ref, null);
         }
-        vm._bindDir(descriptor, el, host, scope, frag);
+        return vm._bindDir(descriptor, el, host, scope, frag);
       };
-      componentLinkFn.terminal = true;
+      componentLinkFn.terminal = false; // continue to compile child components
       return componentLinkFn;
     }
   }
@@ -6939,7 +7054,7 @@
       if (tokens) {
         value = tokensToExp(tokens);
         arg = name;
-        pushDir('bind', publicDirectives.bind, true);
+        pushDir('bind', publicDirectives.bind, tokens);
         // warn against mixing mustaches with v-bind
         if ('development' !== 'production') {
           if (name === 'class' && Array.prototype.some.call(attrs, function (attr) {
@@ -7005,11 +7120,12 @@
      *
      * @param {String} dirName
      * @param {Object|Function} def
-     * @param {Boolean} [interp]
+     * @param {Array} [interpTokens]
      */
 
-    function pushDir(dirName, def, interp) {
-      var parsed = parseDirective(value);
+    function pushDir(dirName, def, interpTokens) {
+      var hasOneTimeToken = interpTokens && hasOneTime(interpTokens);
+      var parsed = !hasOneTimeToken && parseDirective(value);
       dirs.push({
         name: dirName,
         attr: rawName,
@@ -7017,9 +7133,13 @@
         def: def,
         arg: arg,
         modifiers: modifiers,
-        expression: parsed.expression,
-        filters: parsed.filters,
-        interp: interp
+        // conversion from interpolation strings with one-time token
+        // to expression is differed until directive bind time so that we
+        // have access to the actual vm context for one-time bindings.
+        expression: parsed && parsed.expression,
+        filters: parsed && parsed.filters,
+        interp: interpTokens,
+        hasOneTime: hasOneTimeToken
       });
     }
 
@@ -7062,6 +7182,20 @@
         vm._bindDir(directives[i], el, host, scope, frag);
       }
     };
+  }
+
+  /**
+   * Check if an interpolation string contains one-time tokens.
+   *
+   * @param {Array} tokens
+   * @return {Boolean}
+   */
+
+  function hasOneTime(tokens) {
+    var i = tokens.length;
+    while (i--) {
+      if (tokens[i].oneTime) return true;
+    }
   }
 
   var specialCharRE = /[^\w\-:\.]/;
@@ -7193,7 +7327,7 @@
       value = attrs[i].value;
       if (!to.hasAttribute(name) && !specialCharRE.test(name)) {
         to.setAttribute(name, value);
-      } else if (name === 'class') {
+      } else if (name === 'class' && !parseText(value)) {
         value.split(/\s+/).forEach(function (cls) {
           addClass(to, cls);
         });
@@ -7250,7 +7384,8 @@
     Vue.prototype._initProps = function () {
       var options = this.$options;
       var el = options.el;
-      var props = options.props;
+      // allow merging the attributes of the root element
+      var props = options.props || {};
       if (props && !el) {
         'development' !== 'production' && warn('Props will not be compiled if no `el` option is ' + 'provided at instantiation.');
       }
@@ -7267,10 +7402,11 @@
 
     Vue.prototype._initData = function () {
       var propsData = this._data;
-      var optionsDataFn = this.$options.data;
+      // NOTE: keep old mechanism
+      var optionsDataFn = this.$options.data || this.$options.state;
       var optionsData = optionsDataFn && optionsDataFn();
       if (optionsData) {
-        this._data = optionsData;
+        this.state = this._data = optionsData; // NOTE: keep old mechanism
         for (var prop in propsData) {
           if ('development' !== 'production' && hasOwn(optionsData, prop)) {
             warn('Data field "' + prop + '" is already defined ' + 'as a prop. Use prop default value instead.');
@@ -7302,7 +7438,7 @@
     Vue.prototype._setData = function (newData) {
       newData = newData || {};
       var oldData = this._data;
-      this._data = newData;
+      this.state = this._data = newData; // NOTE: keep old mechanism
       var keys, key, i;
       // unproxy keys not present in new data
       keys = Object.keys(oldData);
@@ -7483,6 +7619,7 @@
         if (eventRE.test(name)) {
           name = name.replace(eventRE, '');
           handler = (vm._scope || vm._context).$eval(attrs[i].value, true);
+          handler._fromParent = true;
           vm.$on(name.replace(eventRE), handler);
         }
       }
@@ -8032,10 +8169,13 @@
      * @param {Vue} [host] - transclusion host component
      * @param {Object} [scope] - v-for scope
      * @param {Fragment} [frag] - owner fragment
+     * @return {Directive}
      */
 
     Vue.prototype._bindDir = function (descriptor, node, host, scope, frag) {
-      this._directives.push(new Directive(descriptor, this, node, host, scope, frag));
+      var dir = new Directive(descriptor, this, node, host, scope, frag);
+      this._directives.push(dir);
+      return dir;
     };
 
     /**
@@ -8316,6 +8456,7 @@
       // enable recursive self-lookup
       if (name) {
         Sub.options.components[name] = Sub;
+        Sub.options.components[name.toLowerCase()] = Sub;
       }
       // cache constructor
       if (isFirstExtend) {
@@ -8388,9 +8529,12 @@
               warn('Do not use built-in or reserved HTML elements as component ' + 'id: ' + id);
             }
           }
-          if (type === 'component' && isPlainObject(definition)) {
-            definition.name = id;
-            definition = Vue.extend(definition);
+          if (type === 'component') {
+            if (isPlainObject(definition)) {
+              definition.name = id;
+              definition = Vue.extend(definition);
+            }
+            this.options[type + 's'][id.toLowerCase()] = definition;
           }
           this.options[type + 's'][id] = definition;
           return definition;
@@ -8418,8 +8562,9 @@
           var self = this;
           return function statementHandler() {
             self.$arguments = toArray(arguments);
-            res.get.call(self, self);
+            var result = res.get.call(self, self);
             self.$arguments = null;
+            return result;
           };
         } else {
           try {
@@ -8839,19 +8984,32 @@
     /**
      * Trigger an event on self.
      *
-     * @param {String} event
+     * @param {String|Object} event
      * @return {Boolean} shouldPropagate
      */
 
     Vue.prototype.$emit = function (event) {
+      var isSource = typeof event === 'string';
+      event = isSource ? event : event.name;
       var cbs = this._events[event];
-      var shouldPropagate = !cbs;
+      var shouldPropagate = isSource || !cbs;
       if (cbs) {
         cbs = cbs.length > 1 ? toArray(cbs) : cbs;
+        // this is a somewhat hacky solution to the question raised
+        // in #2102: for an inline component listener like <comp @test="doThis">,
+        // the propagation handling is somewhat broken. Therefore we
+        // need to treat these inline callbacks differently.
+        var hasParentCbs = isSource && cbs.some(function (cb) {
+          return cb._fromParent;
+        });
+        if (hasParentCbs) {
+          shouldPropagate = false;
+        }
         var args = toArray(arguments, 1);
         for (var i = 0, l = cbs.length; i < l; i++) {
-          var res = cbs[i].apply(this, args);
-          if (res === true) {
+          var cb = cbs[i];
+          var res = cb.apply(this, args);
+          if (res === true && (!hasParentCbs || cb._fromParent)) {
             shouldPropagate = true;
           }
         }
@@ -8862,20 +9020,28 @@
     /**
      * Recursively broadcast an event to all children instances.
      *
-     * @param {String} event
+     * @param {String|Object} event
      * @param {...*} additional arguments
      */
 
     Vue.prototype.$broadcast = function (event) {
+      var isSource = typeof event === 'string';
+      event = isSource ? event : event.name;
       // if no child has registered for this event,
       // then there's no need to broadcast.
       if (!this._eventsCount[event]) return;
       var children = this.$children;
+      var args = toArray(arguments);
+      if (isSource) {
+        // use object event to indicate non-source emit
+        // on children
+        args[0] = { name: event, source: this };
+      }
       for (var i = 0, l = children.length; i < l; i++) {
         var child = children[i];
-        var shouldPropagate = child.$emit.apply(child, arguments);
+        var shouldPropagate = child.$emit.apply(child, args);
         if (shouldPropagate) {
-          child.$broadcast.apply(child, arguments);
+          child.$broadcast.apply(child, args);
         }
       }
       return this;
@@ -8888,11 +9054,16 @@
      * @param {...*} additional arguments
      */
 
-    Vue.prototype.$dispatch = function () {
-      this.$emit.apply(this, arguments);
+    Vue.prototype.$dispatch = function (event) {
+      var shouldPropagate = this.$emit.apply(this, arguments);
+      if (!shouldPropagate) return;
       var parent = this.$parent;
+      var args = toArray(arguments);
+      // use object event to indicate non-source emit
+      // on parents
+      args[0] = { name: event, source: this };
       while (parent) {
-        var shouldPropagate = parent.$emit.apply(parent, arguments);
+        shouldPropagate = parent.$emit.apply(parent, args);
         parent = shouldPropagate ? parent.$parent : null;
       }
       return this;
@@ -9029,6 +9200,7 @@
 
   function limitBy(arr, n, offset) {
     offset = offset ? parseInt(offset, 10) : 0;
+    n = toNumber(n);
     return typeof n === 'number' ? arr.slice(offset, offset + n) : arr;
   }
 
