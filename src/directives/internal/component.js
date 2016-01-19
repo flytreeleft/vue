@@ -224,19 +224,23 @@ export default {
       if (extraOptions) {
         extend(options, extraOptions)
       }
-      if (this.descriptor.children) {
-        var children = [];
-        for (var i = 0, len = this.descriptor.children.length; i < len; i++) {
-          var child = this.descriptor.children[i];
-          children.push(child.childVM);
-        }
-        (options.props || (options.props = {})).children = {
-          type: Array,
-          'default': function() {
-            return children;
-          }
-        };
+
+      var childDirs = this.descriptor.children || []
+      if (!options.props) {
+        options.props = {};
       }
+      options.props.children = {
+        type: Array,
+        'default': function() {
+          var children = [], i = childDirs.length
+          while (i--) {
+            var child = childDirs[i]
+            children.push(child.childVM)
+          }
+          return children
+        }
+      }
+
       var child = new this.Component(options)
       if (this.keepAlive) {
         this.cache[this.Component.cid] = child
