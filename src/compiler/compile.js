@@ -124,9 +124,14 @@ function linkAndCapture (linker, vm) {
  */
 
 function directiveComparator (a, b) {
-  a = a.descriptor.def.priority || DEFAULT_PRIORITY
-  b = b.descriptor.def.priority || DEFAULT_PRIORITY
-  return a > b ? -1 : a === b ? 0 : 1
+  var pa = a.descriptor.def.priority || DEFAULT_PRIORITY
+  var pb = b.descriptor.def.priority || DEFAULT_PRIORITY
+  // child directive always before it's parent
+  if (a.descriptor.parent === b) {
+    return -1
+  } else {
+    return pa > pb ? -1 : pa === pb ? 0 : 1
+  }
 }
 
 /**
