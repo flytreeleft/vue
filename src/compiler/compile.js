@@ -27,7 +27,7 @@ const modifierRE = /\.[^\.]+/g
 const transitionRE = /^(v-bind:|:)?transition$/
 
 // terminal directives
-const terminalDirectives = [
+export const terminalDirectives = [
   'for',
   'if'
 ]
@@ -622,11 +622,10 @@ function checkTerminalDirectives (el, options) {
   var value, dirName
   for (var i = 0, l = terminalDirectives.length; i < l; i++) {
     dirName = terminalDirectives[i]
-    /* eslint-disable no-cond-assign */
-    if (value = el.getAttribute('v-' + dirName)) {
+    value = el.getAttribute('v-' + dirName)
+    if (value != null) {
       return makeTerminalNodeLinkFn(el, dirName, value, options)
     }
-    /* eslint-enable no-cond-assign */
   }
 }
 

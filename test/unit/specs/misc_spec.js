@@ -223,7 +223,13 @@ describe('Misc', function () {
     })
     expect(vm.$el.textContent).toBe('hi frozen')
     vm.msg = 'ho'
-    vm.frozen.msg = 'changed'
+    try {
+      vm.frozen.msg = 'changed'
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        throw error
+      }
+    }
     Vue.nextTick(function () {
       expect(vm.$el.textContent).toBe('ho frozen')
       done()
@@ -444,5 +450,28 @@ describe('Misc', function () {
       }
     })
     expect(vm.$el.firstChild.className).toBe('outer-hi')
+  })
+
+  // #2163
+  it('slot compilation order with v-if', function () {
+    var vm = new Vue({
+      el: document.createElement('div'),
+      template:
+        '<test>' +
+          '<div slot="one">slot1</div>' +
+          'default content' +
+        '</test>',
+      components: {
+        test: {
+          template:
+            '<div>' +
+              '<slot v-if="true"></slot> ' +
+              '<slot name="one"></slot>' +
+            '</div>',
+          replace: true
+        }
+      }
+    })
+    expect(vm.$el.textContent).toBe('default content slot1')
   })
 })
