@@ -5990,19 +5990,24 @@
         if (extraOptions) {
           extend(options, extraOptions);
         }
-        if (this.descriptor.children) {
-          var children = [];
-          for (var i = 0, len = this.descriptor.children.length; i < len; i++) {
-            var child = this.descriptor.children[i];
-            children.push(child.childVM);
-          }
-          (options.props || (options.props = {})).children = {
-            type: Array,
-            'default': function _default() {
-              return children;
-            }
-          };
+
+        var childDirs = this.descriptor.children || [];
+        if (!options.props) {
+          options.props = {};
         }
+        options.props.children = {
+          type: Array,
+          'default': function _default() {
+            var children = [],
+                i = childDirs.length;
+            while (i--) {
+              var child = childDirs[i];
+              children.push(child.childVM);
+            }
+            return children;
+          }
+        };
+
         var child = new this.Component(options);
         if (this.keepAlive) {
           this.cache[this.Component.cid] = child;
@@ -6500,9 +6505,14 @@
    */
 
   function directiveComparator(a, b) {
-    a = a.descriptor.def.priority || DEFAULT_PRIORITY;
-    b = b.descriptor.def.priority || DEFAULT_PRIORITY;
-    return a > b ? -1 : a === b ? 0 : 1;
+    var pa = a.descriptor.def.priority || DEFAULT_PRIORITY;
+    var pb = b.descriptor.def.priority || DEFAULT_PRIORITY;
+    // child directive always before it's parent
+    if (a.descriptor.parent === b) {
+      return -1;
+    } else {
+      return pa > pb ? -1 : pa === pb ? 0 : 1;
+    }
   }
 
   /**
