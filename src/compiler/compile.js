@@ -503,14 +503,17 @@ function compileNodeList (nodeList, options) {
 
 function makeChildLinkFn (linkFns) {
   return function childLinkFn (vm, nodes, host, scope, frag) {
-    var node, nodeLinkFn, childrenLinkFn, nodeDirs = []
+    var node
+    var nodeLinkFn
+    var childrenLinkFn
+    var nodeDirs = []
     for (var i = 0, n = 0, l = linkFns.length; i < l; n++) {
       node = nodes[n]
       nodeLinkFn = linkFns[i++]
       childrenLinkFn = linkFns[i++]
       // cache childNodes before linking parent, fix #657
       var childNodes = toArray(node.childNodes)
-      var nodeDir, childDirs;
+      var nodeDir, childDirs
       // link children first for rendering them before their parent
       if (childrenLinkFn) {
         childDirs = childrenLinkFn(vm, childNodes, host, scope, frag)
@@ -521,7 +524,7 @@ function makeChildLinkFn (linkFns) {
       }
       linkDirective(nodeDir, childDirs)
     }
-    return nodeDirs;
+    return nodeDirs
   }
 }
 
@@ -532,9 +535,9 @@ function makeChildLinkFn (linkFns) {
  * @param {Array} childDirs - child directives
  */
 
-function linkDirective(parentDir, childDirs) {
+function linkDirective (parentDir, childDirs) {
   var childDir
-  var i = childDirs && parentDir ? childDirs.length : 0;
+  var i = childDirs && parentDir ? childDirs.length : 0
   while (i--) {
     childDir = childDirs[i]
 

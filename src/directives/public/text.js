@@ -1,5 +1,4 @@
 import {
-  isObject,
   _toString,
   replace
 } from '../../util/index'

@@ -78,10 +78,10 @@ function getIsBinding (el) {
 export function initProp (vm, prop, value) {
   const key = prop.path
   value = coerceProp(prop, value)
-  // NOTE: keep old mechanism
-  vm[key] = vm.props[key] = vm._data[key] = assertProp(prop, value)
-    ? value
-    : undefined
+  // vm[key] = vm._data[key] = assertProp(prop, value)
+  //  ? value
+  //  : undefined
+  vm.props[key] = assertProp(prop, value) ? value : undefined
 }
 
 /**

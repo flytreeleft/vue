@@ -227,12 +227,13 @@ export default {
 
       var childDirs = this.descriptor.children || []
       if (!options.props) {
-        options.props = {};
+        options.props = {}
       }
       options.props.children = {
         type: Array,
-        'default': function() {
-          var children = [], i = childDirs.length
+        'default': function () {
+          var children = []
+          var i = childDirs.length
           while (i--) {
             var child = childDirs[i]
             children.push(child.childVM)

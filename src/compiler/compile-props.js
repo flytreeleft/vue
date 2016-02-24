@@ -140,12 +140,16 @@ export function compileProps (el, propOptions) {
  * @return {Array} options
  */
 
-function mergeProps(el, propOptions) {
+function mergeProps (el, propOptions) {
   var options = extend({}, propOptions)
   var attrs = el.attributes
   var i = attrs.length
   while (i--) {
-    var name = attrs[i].name.replace(':', '')
+    var name = attrs[i].name
+    if (/^(v-bind:|:)/.test(name)) {
+      name = name.replace(/^(v-bind:|:)([^\.]+).*$/, '$2')
+    }
+
     if (!disallowedMergedAttrRE.test(name) &&
         !options[name]) {
       options[name] = {}

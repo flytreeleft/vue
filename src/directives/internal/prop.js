@@ -27,7 +27,7 @@ export default {
       function (val) {
         val = coerceProp(prop, val)
         if (assertProp(prop, val)) {
-          child[childKey] = val
+          child.props[childKey] = val
         }
       }, {
         twoWay: twoWay,

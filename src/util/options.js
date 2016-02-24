@@ -45,12 +45,10 @@ function mergeData (to, from) {
 }
 
 /**
- * Data and State
- *
- * NOTE: keep old mechanism
+ * Data
  */
 
-strats.state = strats.data = function (parentVal, childVal, vm) {
+strats.data = function (parentVal, childVal, vm) {
   if (!vm) {
     // in a Vue.extend merge, both should be functions
     if (!childVal) {

@@ -10,7 +10,6 @@ import {
   warn,
   query,
   hasOwn,
-  set,
   isReserved,
   bind
 } from '../../util/index'
@@ -71,6 +70,8 @@ export default function (Vue) {
       // props must be linked in proper scope if inside v-for
       ? compileAndLinkProps(this, el, props, this._scope)
       : null
+    // observe props
+    observe(this.props, this)
   }
 
   /**
@@ -78,25 +79,24 @@ export default function (Vue) {
    */
 
   Vue.prototype._initData = function () {
-    var propsData = this._data
-    // NOTE: keep old mechanism
-    var optionsDataFn = this.$options.data || this.$options.state
+    // var propsData = this.props
+    var optionsDataFn = this.$options.data
     var optionsData = optionsDataFn && optionsDataFn()
     if (optionsData) {
-      this.state = this._data = optionsData // NOTE: keep old mechanism
-      for (var prop in propsData) {
-        if (process.env.NODE_ENV !== 'production' &&
-            hasOwn(optionsData, prop)) {
-          warn(
-            'Data field "' + prop + '" is already defined ' +
-            'as a prop. Use prop default value instead.'
-          )
-        }
-        if (this._props[prop].raw !== null ||
-            !hasOwn(optionsData, prop)) {
-          set(optionsData, prop, propsData[prop])
-        }
-      }
+      this._data = optionsData
+      // for (var prop in propsData) {
+      //  if (process.env.NODE_ENV !== 'production' &&
+      //      hasOwn(optionsData, prop)) {
+      //    warn(
+      //      'Data field "' + prop + '" is already defined ' +
+      //      'as a prop. Use prop default value instead.'
+      //    )
+      //  }
+      //  if (this._props[prop].raw !== null ||
+      //      !hasOwn(optionsData, prop)) {
+      //    set(optionsData, prop, propsData[prop])
+      //  }
+      // }
     }
     var data = this._data
     // proxy data on instance
@@ -120,7 +120,7 @@ export default function (Vue) {
   Vue.prototype._setData = function (newData) {
     newData = newData || {}
     var oldData = this._data
-    this.state = this._data = newData // NOTE: keep old mechanism
+    this._data = newData
     var keys, key, i
     // unproxy keys not present in new data
     keys = Object.keys(oldData)
