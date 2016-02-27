@@ -1787,7 +1787,6 @@
         if (isPlainObject(def)) {
           components[key] = Vue.extend(def);
         }
-        components[key.toLowerCase()] = components[key];
       }
     }
   }
@@ -8542,7 +8541,6 @@
       // enable recursive self-lookup
       if (name) {
         Sub.options.components[name] = Sub;
-        Sub.options.components[name.toLowerCase()] = Sub;
       }
       // cache constructor
       if (isFirstExtend) {
@@ -8615,12 +8613,9 @@
               warn('Do not use built-in or reserved HTML elements as component ' + 'id: ' + id);
             }
           }
-          if (type === 'component') {
-            if (isPlainObject(definition)) {
-              definition.name = id;
-              definition = Vue.extend(definition);
-            }
-            this.options[type + 's'][id.toLowerCase()] = definition;
+          if (type === 'component' && isPlainObject(definition)) {
+            definition.name = id;
+            definition = Vue.extend(definition);
           }
           this.options[type + 's'][id] = definition;
           return definition;
