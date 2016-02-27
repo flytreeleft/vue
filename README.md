@@ -9,6 +9,13 @@
   <a href="https://gitter.im/vuejs/vue"><img src="https://badges.gitter.im/Join Chat.svg"></a>
 </p>
 
+## New Features
+
+- Support camelCased tag name in template
+- Separate `props` from `data`, the component properties can be and only be accessed like `props.anyProp`. Note that the property and state can be the same name, they have no impact on each other
+- Pre-define properties in `props` isn't needed, any properties in component tag can be accessed by `props`, meanwhile, `v-bind` is still supported
+- Support nest component in host, the nested components will be stored in `props.children` of the parent. The nested components can be rendered like `v-for="child in props.children"` in the template of parent
+
 ## Intro
 
 Vue.js is a library for building interactive web interfaces. It provides data-reactive components with a simple and flexible API. Core features include:
