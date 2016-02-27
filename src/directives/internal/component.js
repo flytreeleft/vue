@@ -233,10 +233,13 @@ export default {
         type: Array,
         'default': function () {
           var children = []
-          var i = childDirs.length
-          while (i--) {
+          for (var i = 0, l = childDirs.length; i < l; i++) {
             var child = childDirs[i]
-            children.push(child.childVM)
+            if (child.childVM) {
+              child.bindVM(this, child.childVM, i)
+
+              children.push(child.childVM)
+            }
           }
           return children
         }
@@ -245,6 +248,12 @@ export default {
       var child = new this.Component(options)
       if (this.keepAlive) {
         this.cache[this.Component.cid] = child
+      }
+
+      var parentDir = this.descriptor.parent
+      if (parentDir) {
+        var index = parentDir.descriptor.children.indexOf(this)
+        this.bindVM(parentDir.childVM, child, index)
       }
       /* istanbul ignore if */
       if (process.env.NODE_ENV !== 'production' &&
@@ -256,6 +265,28 @@ export default {
         )
       }
       return child
+    }
+  },
+
+  /**
+   * Rebind the nested child to the new parent
+   *
+   * @param {Vue} parent
+   * @param {Vue} child
+   * @param {Number|undefined} index the index in parent's children
+   */
+
+  bindVM (parent, child, index) {
+    if (child && parent) {
+      child.$parent.$children.$remove(child)
+      child.$parent = parent
+
+      index = index >= 0 ? index : parent.$children.length
+      parent.$children.$set(index, child)
+
+      if (parent.props.children) {
+        parent.props.children.$set(index, child)
+      }
     }
   },
 

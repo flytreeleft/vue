@@ -84,12 +84,11 @@ export function compile (el, options, partial) {
     // link
     var dirs = linkAndCapture(function compositeLinkCapturer () {
       var nodeDir, childDirs
-      // link children first for rendering them before their parent
-      if (childLinkFn) {
-        childDirs = childLinkFn(vm, childNodes, host, scope, frag)
-      }
       if (nodeLinkFn) {
         nodeDir = nodeLinkFn(vm, el, host, scope, frag)
+      }
+      if (childLinkFn) {
+        childDirs = childLinkFn(vm, childNodes, host, scope, frag)
       }
       linkDirective(nodeDir, childDirs)
     }, vm)
@@ -123,15 +122,10 @@ function linkAndCapture (linker, vm) {
  * @param {Object} b
  */
 
-function directiveComparator (a, b) {
-  var pa = a.descriptor.def.priority || DEFAULT_PRIORITY
-  var pb = b.descriptor.def.priority || DEFAULT_PRIORITY
-  // child directive always before it's parent
-  if (a.descriptor.parent === b) {
-    return -1
-  } else {
-    return pa > pb ? -1 : pa === pb ? 0 : 1
-  }
+function directiveComparator(a, b) {
+  a = a.descriptor.def.priority || DEFAULT_PRIORITY
+  b = b.descriptor.def.priority || DEFAULT_PRIORITY
+  return a > b ? -1 : a === b ? 0 : 1
 }
 
 /**
@@ -514,13 +508,12 @@ function makeChildLinkFn (linkFns) {
       // cache childNodes before linking parent, fix #657
       var childNodes = toArray(node.childNodes)
       var nodeDir, childDirs
-      // link children first for rendering them before their parent
-      if (childrenLinkFn) {
-        childDirs = childrenLinkFn(vm, childNodes, host, scope, frag)
-      }
       if (nodeLinkFn) {
         nodeDir = nodeLinkFn(vm, node, host, scope, frag)
         nodeDir && nodeDirs.push(nodeDir)
+      }
+      if (childrenLinkFn) {
+        childDirs = childrenLinkFn(vm, childNodes, host, scope, frag)
       }
       linkDirective(nodeDir, childDirs)
     }
@@ -536,13 +529,19 @@ function makeChildLinkFn (linkFns) {
  */
 
 function linkDirective (parentDir, childDirs) {
-  var childDir
-  var i = childDirs && parentDir ? childDirs.length : 0
-  while (i--) {
-    childDir = childDirs[i]
+  if (!childDirs || !parentDir) {
+    return
+  }
+  for (var i = 0, l = childDirs.length; i < l; i++) {
+    var childDir = childDirs[i]
+    if (!childDir.descriptor.parent) {
+      childDir.descriptor.parent = parentDir
 
-    !childDir.descriptor.parent && (childDir.descriptor.parent = parentDir) &&
-    (parentDir.descriptor.children || (parentDir.descriptor.children = [])).push(childDir)
+      if (!parentDir.descriptor.children) {
+        parentDir.descriptor.children = []
+      }
+      parentDir.descriptor.children.push(childDir)
+    }
   }
 }
 

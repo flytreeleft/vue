@@ -188,6 +188,8 @@ export default function (Vue) {
     var parent = this.$parent
     if (parent && !parent._isBeingDestroyed) {
       parent.$children.$remove(this)
+      // remove self from parent's props
+      parent.props.children && parent.props.children.$remove(this);
       // unregister ref (remove: true)
       this._updateRef(true)
     }
