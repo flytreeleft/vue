@@ -1513,8 +1513,10 @@ function getIsBinding(el) {
 function initProp(vm, prop, value) {
   var key = prop.path;
   value = coerceProp(prop, value);
-  // NOTE: keep old mechanism
-  vm[key] = vm.props[key] = vm._data[key] = assertProp(prop, value) ? value : undefined;
+  // vm[key] = vm._data[key] = assertProp(prop, value)
+  //  ? value
+  //  : undefined
+  vm.props[key] = assertProp(prop, value) ? value : undefined;
 }
 
 /**
@@ -1629,12 +1631,10 @@ function mergeData(to, from) {
 }
 
 /**
- * Data and State
- *
- * NOTE: keep old mechanism
+ * Data
  */
 
-strats.state = strats.data = function (parentVal, childVal, vm) {
+strats.data = function (parentVal, childVal, vm) {
   if (!vm) {
     // in a Vue.extend merge, both should be functions
     if (!childVal) {
@@ -2378,7 +2378,7 @@ function initMixin (Vue) {
 
     // fragment:
     // if this instance is compiled inside a Fragment, it
-    // needs to reigster itself as a child of that fragment
+    // needs to register itself as a child of that fragment
     // for attach/detach to work properly.
     this._frag = options._frag;
     if (this._frag) {
@@ -2398,8 +2398,7 @@ function initMixin (Vue) {
 
     // initialize data as empty object.
     // it will be filled up in _initScope().
-    // NOTE: keep old mechanism
-    this.state = this._data = {};
+    this._data = {};
     this.props = {};
 
     // call init hook
@@ -4868,6 +4867,8 @@ var vFor = {
         // new instance, or still in stagger.
         // insert with updated stagger index.
         this.insert(frag, insertionIndex++, prevEl, inDocument);
+        // call vue instance attached event
+        this.callAttach(frag);
       }
       frag.reused = frag.fresh = false;
     }
@@ -4981,6 +4982,25 @@ var vFor = {
       setTimeout(op, staggerAmount);
     } else {
       frag.before(prevEl.nextSibling);
+    }
+  },
+
+  /**
+   * Call child component attached.
+   *
+   * If the `frag` isn't a vue component,
+   * it will do nothing.
+   *
+   * NOTE: In nested components, the child component
+   * will be attached when executing v-for.
+   *
+   * @param {Fragment} frag
+   */
+
+  callAttach: function callAttach(frag) {
+    var raw = frag.raw;
+    if (isObject(raw) && hasOwn(raw, '_isVue') && raw._isVue && !raw._isAttached && inDoc(raw.$el)) {
+      raw._callHook('attached');
     }
   },
 
@@ -5754,7 +5774,7 @@ var propDef = {
     var parentWatcher = this.parentWatcher = new Watcher(parent, parentKey, function (val) {
       val = coerceProp(prop, val);
       if (assertProp(prop, val)) {
-        child[childKey] = val;
+        child.props[childKey] = val;
       }
     }, {
       twoWay: twoWay,
@@ -6007,11 +6027,14 @@ var component = {
       options.props.children = {
         type: Array,
         'default': function _default() {
-          var children = [],
-              i = childDirs.length;
-          while (i--) {
+          var children = [];
+          for (var i = 0, l = childDirs.length; i < l; i++) {
             var child = childDirs[i];
-            children.push(child.childVM);
+            if (child.childVM) {
+              child.bindVM(this, child.childVM, i);
+
+              children.push(child.childVM);
+            }
           }
           return children;
         }
@@ -6021,11 +6044,39 @@ var component = {
       if (this.keepAlive) {
         this.cache[this.Component.cid] = child;
       }
+
+      var parentDir = this.descriptor.parent;
+      if (parentDir) {
+        var index = parentDir.descriptor.children.indexOf(this);
+        this.bindVM(parentDir.childVM, child, index);
+      }
       /* istanbul ignore if */
       if (process.env.NODE_ENV !== 'production' && this.el.hasAttribute('transition') && child._isFragment) {
         warn('Transitions will not work on a fragment instance. ' + 'Template: ' + child.$options.template);
       }
       return child;
+    }
+  },
+
+  /**
+   * Rebind the nested child to the new parent
+   *
+   * @param {Vue} parent
+   * @param {Vue} child
+   * @param {Number|undefined} index the index in parent's children
+   */
+
+  bindVM: function bindVM(parent, child, index) {
+    if (child && parent) {
+      child.$parent.$children.$remove(child);
+      child.$parent = parent;
+
+      index = index >= 0 ? index : parent.$children.length;
+      parent.$children.$set(index, child);
+
+      if (parent.props.children) {
+        parent.props.children.$set(index, child);
+      }
     }
   },
 
@@ -6333,7 +6384,11 @@ function mergeProps(el, propOptions) {
   var attrs = el.attributes;
   var i = attrs.length;
   while (i--) {
-    var name = attrs[i].name.replace(':', '');
+    var name = attrs[i].name;
+    if (/^(v-bind:|:)/.test(name)) {
+      name = name.replace(/^(v-bind:|:)([^\.]+).*$/, '$2');
+    }
+
     if (!disallowedMergedAttrRE.test(name) && !options[name]) {
       options[name] = {};
     }
@@ -6474,12 +6529,11 @@ function compile(el, options, partial) {
     // link
     var dirs = linkAndCapture(function compositeLinkCapturer() {
       var nodeDir, childDirs;
-      // link children first for rendering them before their parent
-      if (childLinkFn) {
-        childDirs = childLinkFn(vm, childNodes, host, scope, frag);
-      }
       if (nodeLinkFn) {
         nodeDir = nodeLinkFn(vm, el, host, scope, frag);
+      }
+      if (childLinkFn) {
+        childDirs = childLinkFn(vm, childNodes, host, scope, frag);
       }
       linkDirective(nodeDir, childDirs);
     }, vm);
@@ -6514,14 +6568,9 @@ function linkAndCapture(linker, vm) {
  */
 
 function directiveComparator(a, b) {
-  var pa = a.descriptor.def.priority || DEFAULT_PRIORITY;
-  var pb = b.descriptor.def.priority || DEFAULT_PRIORITY;
-  // child directive always before it's parent
-  if (a.descriptor.parent === b) {
-    return -1;
-  } else {
-    return pa > pb ? -1 : pa === pb ? 0 : 1;
-  }
+  a = a.descriptor.def.priority || DEFAULT_PRIORITY;
+  b = b.descriptor.def.priority || DEFAULT_PRIORITY;
+  return a > b ? -1 : a === b ? 0 : 1;
 }
 
 /**
@@ -6876,10 +6925,10 @@ function compileNodeList(nodeList, options) {
 
 function makeChildLinkFn(linkFns) {
   return function childLinkFn(vm, nodes, host, scope, frag) {
-    var node,
-        nodeLinkFn,
-        childrenLinkFn,
-        nodeDirs = [];
+    var node;
+    var nodeLinkFn;
+    var childrenLinkFn;
+    var nodeDirs = [];
     for (var i = 0, n = 0, l = linkFns.length; i < l; n++) {
       node = nodes[n];
       nodeLinkFn = linkFns[i++];
@@ -6887,13 +6936,12 @@ function makeChildLinkFn(linkFns) {
       // cache childNodes before linking parent, fix #657
       var childNodes = toArray(node.childNodes);
       var nodeDir, childDirs;
-      // link children first for rendering them before their parent
-      if (childrenLinkFn) {
-        childDirs = childrenLinkFn(vm, childNodes, host, scope, frag);
-      }
       if (nodeLinkFn) {
         nodeDir = nodeLinkFn(vm, node, host, scope, frag);
         nodeDir && nodeDirs.push(nodeDir);
+      }
+      if (childrenLinkFn) {
+        childDirs = childrenLinkFn(vm, childNodes, host, scope, frag);
       }
       linkDirective(nodeDir, childDirs);
     }
@@ -6909,12 +6957,19 @@ function makeChildLinkFn(linkFns) {
  */
 
 function linkDirective(parentDir, childDirs) {
-  var childDir;
-  var i = childDirs && parentDir ? childDirs.length : 0;
-  while (i--) {
-    childDir = childDirs[i];
+  if (!childDirs || !parentDir) {
+    return;
+  }
+  for (var i = 0, l = childDirs.length; i < l; i++) {
+    var childDir = childDirs[i];
+    if (!childDir.descriptor.parent) {
+      childDir.descriptor.parent = parentDir;
 
-    !childDir.descriptor.parent && (childDir.descriptor.parent = parentDir) && (parentDir.descriptor.children || (parentDir.descriptor.children = [])).push(childDir);
+      if (!parentDir.descriptor.children) {
+        parentDir.descriptor.children = [];
+      }
+      parentDir.descriptor.children.push(childDir);
+    }
   }
 }
 
@@ -7413,6 +7468,8 @@ function stateMixin (Vue) {
     this._propsUnlinkFn = el && el.nodeType === 1 && props
     // props must be linked in proper scope if inside v-for
     ? compileAndLinkProps(this, el, props, this._scope) : null;
+    // observe props
+    observe(this.props, this);
   };
 
   /**
@@ -7420,20 +7477,24 @@ function stateMixin (Vue) {
    */
 
   Vue.prototype._initData = function () {
-    var propsData = this._data;
-    // NOTE: keep old mechanism
-    var optionsDataFn = this.$options.data || this.$options.state;
+    // var propsData = this.props
+    var optionsDataFn = this.$options.data;
     var optionsData = optionsDataFn && optionsDataFn();
     if (optionsData) {
-      this.state = this._data = optionsData; // NOTE: keep old mechanism
-      for (var prop in propsData) {
-        if (process.env.NODE_ENV !== 'production' && hasOwn(optionsData, prop)) {
-          warn('Data field "' + prop + '" is already defined ' + 'as a prop. Use prop default value instead.');
-        }
-        if (this._props[prop].raw !== null || !hasOwn(optionsData, prop)) {
-          set(optionsData, prop, propsData[prop]);
-        }
-      }
+      this._data = optionsData;
+      // for (var prop in propsData) {
+      //  if (process.env.NODE_ENV !== 'production' &&
+      //      hasOwn(optionsData, prop)) {
+      //    warn(
+      //      'Data field "' + prop + '" is already defined ' +
+      //      'as a prop. Use prop default value instead.'
+      //    )
+      //  }
+      //  if (this._props[prop].raw !== null ||
+      //      !hasOwn(optionsData, prop)) {
+      //    set(optionsData, prop, propsData[prop])
+      //  }
+      // }
     }
     var data = this._data;
     // proxy data on instance
@@ -7457,7 +7518,7 @@ function stateMixin (Vue) {
   Vue.prototype._setData = function (newData) {
     newData = newData || {};
     var oldData = this._data;
-    this.state = this._data = newData; // NOTE: keep old mechanism
+    this._data = newData;
     var keys, key, i;
     // unproxy keys not present in new data
     keys = Object.keys(oldData);
@@ -8245,6 +8306,8 @@ function lifecycleMixin (Vue) {
     var parent = this.$parent;
     if (parent && !parent._isBeingDestroyed) {
       parent.$children.$remove(this);
+      // remove self from parent's props
+      parent.props.children && parent.props.children.$remove(this);
       // unregister ref (remove: true)
       this._updateRef(true);
     }
