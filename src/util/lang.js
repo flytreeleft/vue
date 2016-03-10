@@ -199,12 +199,13 @@ export function hyphenate (str) {
  * e.g. my-component => MyComponent
  *      some_else    => SomeElse
  *      some/comp    => SomeComp
+ *      component.body => ComponentBody
  *
  * @param {String} str
  * @return {String}
  */
 
-var classifyRE = /(?:^|[-_\/])(\w)/g
+var classifyRE = /(?:^|[-_\/\.])(\w)/g
 export function classify (str) {
   return str.replace(classifyRE, toUpper)
 }
