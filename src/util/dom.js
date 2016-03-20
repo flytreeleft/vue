@@ -37,11 +37,23 @@ export function query (el) {
  */
 
 export function inDoc (node) {
-  var doc = document.documentElement
+  var doc = !inIframe(node) ? document.documentElement : node.ownerDocument.documentElement
   var parent = node && node.parentNode
   return doc === node ||
     doc === parent ||
     !!(parent && parent.nodeType === 1 && (doc.contains(parent)))
+}
+
+/**
+ * Check if a node is in a iframe document
+ *
+ * @param {Node} node
+ * @return {Boolean}
+ */
+
+export function inIframe (node) {
+  var win = node && node.ownerDocument.defaultView
+  return !!(win && win.top !== win)
 }
 
 /**
