@@ -1,9 +1,7 @@
 var Vue = require('src')
 
 describe('misc', function () {
-
   describe('_applyFilters', function () {
-
     var vm = new Vue({
       data: {
         msg: 'BBB'
@@ -21,12 +19,24 @@ describe('misc', function () {
           write: function (v, oldV) {
             return v + ' ' + oldV
           }
+        },
+        duplex1: {
+          read: function (v) {
+            return v.split('').reverse().join('')
+          },
+          write: function (v) {
+            return v.split('').reverse().join('')
+          }
+        },
+        duplex2: {
+          read: function (v) {
+            return v + 'hi'
+          },
+          write: function (v) {
+            return v.replace('hi', '')
+          }
         }
       }
-    })
-
-    beforeEach(function () {
-      spyWarns()
     })
 
     it('read', function () {
@@ -46,9 +56,20 @@ describe('misc', function () {
       expect(val).toBe('test oldTest')
     })
 
+    it('chained read + write', function () {
+      var filters = [
+        { name: 'duplex1' },
+        { name: 'duplex2' }
+      ]
+      var val = vm._applyFilters('test', 'oldTest', filters)
+      expect(val).toBe('tsethi')
+      val = vm._applyFilters('tsethi', 'oldTest', filters, true)
+      expect(val).toBe('test')
+    })
+
     it('warn not found', function () {
       vm._applyFilters('what', null, [{name: 'wtf'}])
-      expect(hasWarned('Failed to resolve filter')).toBe(true)
+      expect('Failed to resolve filter').toHaveBeenWarned()
     })
   })
 })

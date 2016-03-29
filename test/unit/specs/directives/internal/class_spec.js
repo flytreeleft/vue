@@ -2,7 +2,6 @@ var _ = require('src/util')
 var def = require('src/directives/internal/class')
 
 describe(':class', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
@@ -14,9 +13,9 @@ describe(':class', function () {
     dir.update('test')
     expect(el.className).toBe('haha test')
     dir.update('what now test')
-    expect(el.className).toBe('haha test now what')
+    expect(el.className).toBe('haha what now test')
     dir.update('ok cool')
-    expect(el.className).toBe('haha cool ok')
+    expect(el.className).toBe('haha ok cool')
     dir.update()
     expect(el.className).toBe('haha')
   })
@@ -43,7 +42,7 @@ describe(':class', function () {
     dir.update(['b', 'c'])
     expect(el.className).toBe('a b c')
     dir.update(['d', 'c'])
-    expect(el.className).toBe('a c d')
+    expect(el.className).toBe('a d c')
     dir.update()
     expect(el.className).toBe('a')
     // test mutating array
@@ -54,5 +53,18 @@ describe(':class', function () {
     arr.push('f')
     dir.update(arr)
     expect(el.className).toBe('a f')
+    // test array with objects
+    dir.update(['x', {y: true, z: true}])
+    expect(el.className).toBe('a x y z')
+    dir.update(['x', {y: true, z: false}])
+    expect(el.className).toBe('a x y')
+    dir.update(['f', {z: true}])
+    expect(el.className).toBe('a f z')
+    dir.update(['l', 'f', {n: true, z: true}])
+    expect(el.className).toBe('a l f n z')
+    dir.update(['x', {}])
+    expect(el.className).toBe('a x')
+    dir.update()
+    expect(el.className).toBe('a')
   })
 })

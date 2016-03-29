@@ -1,7 +1,6 @@
 var filters = require('src/filters')
 
 describe('Filters', function () {
-
   it('json read', function () {
     var filter = filters.json.read
     var obj = {a: {b: 2}}
@@ -75,9 +74,9 @@ describe('Filters', function () {
     expect(filter(undefined)).toBe('')
     expect(filter(Infinity)).toBe('')
     // negative numbers
-    expect(filter(-50)).toBe('$-50.00')
-    expect(filter(-150.43)).toBe('$-150.43')
-    expect(filter(-1500.4343434)).toBe('$-1,500.43')
+    expect(filter(-50)).toBe('-$50.00')
+    expect(filter(-150.43)).toBe('-$150.43')
+    expect(filter(-1500.4343434)).toBe('-$1,500.43')
   })
 
   it('debounce', function (done) {
@@ -129,7 +128,7 @@ describe('Filters', function () {
     var filter = filters.filterBy
     var arr = [
       { a: 1, b: { c: 'hello' }},
-      { a: 2, b: 'hello'},
+      { a: 2, b: 'hello' },
       { a: 3, b: ['yoyo'] }
     ]
     var res
@@ -188,9 +187,9 @@ describe('Filters', function () {
   it('orderBy', function () {
     var filter = filters.orderBy
     var arr = [
-      { a: { b: 0 }, c: 'b'},
-      { a: { b: 2 }, c: 'c'},
-      { a: { b: 1 }, c: 'a'}
+      { a: { b: 0 }, c: 'b' },
+      { a: { b: 2 }, c: 'c' },
+      { a: { b: 1 }, c: 'a' }
     ]
     var res
     // sort key

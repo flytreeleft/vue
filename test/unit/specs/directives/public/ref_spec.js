@@ -2,11 +2,9 @@ var _ = require('src/util')
 var Vue = require('src')
 
 describe('ref', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
-    spyWarns()
   })
 
   var components = {
@@ -142,6 +140,6 @@ describe('ref', function () {
       el: el,
       template: '<div v-ref:test></div>'
     })
-    expect(hasWarned('must be used on a child component')).toBe(true)
+    expect('must be used on a child component').toHaveBeenWarned()
   })
 })

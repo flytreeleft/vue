@@ -1,8 +1,7 @@
 var Vue = require('src')
-var _ = require('src/util')
+var nextTick = Vue.nextTick
 
 describe('Slot Distribution', function () {
-
   var el, vm, options
   beforeEach(function () {
     el = document.createElement('div')
@@ -158,7 +157,7 @@ describe('Slot Distribution', function () {
     })
     expect(el.innerHTML).toBe('<test>hello</test>')
     vm.msg = 'what'
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe('<test>what</test>')
       done()
     })
@@ -182,14 +181,14 @@ describe('Slot Distribution', function () {
     })
     expect(el.textContent).toBe('12')
     vm.a = 2
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.textContent).toBe('22')
       vm.show = false
-      _.nextTick(function () {
+      nextTick(function () {
         expect(el.textContent).toBe('')
         vm.show = true
         vm.a = 3
-        _.nextTick(function () {
+        nextTick(function () {
           expect(el.textContent).toBe('32')
           done()
         })
@@ -237,7 +236,7 @@ describe('Slot Distribution', function () {
     markup = vm.list.map(function (item) {
       return '<div class="child parent">' + item.a + ' ho</div>'
     }).join('')
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe(markup)
       done()
     })
@@ -266,7 +265,7 @@ describe('Slot Distribution', function () {
       '</testb></testa>'
     )
     vm.list.push(3)
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe(
         '<testa><testb>' +
           '<div>1</div><div>2</div><div>3</div>' +
@@ -297,7 +296,7 @@ describe('Slot Distribution', function () {
     })
     expect(el.innerHTML).toBe('<testa></testa>')
     vm.ok = true
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe('<testa><testb>hello</testb></testa>')
       done()
     })
@@ -397,4 +396,65 @@ describe('Slot Distribution', function () {
     expect(el.textContent).toBe('hihihi')
   })
 
+  it('fallback for slot with v-if', function (done) {
+    var vm = new Vue({
+      el: el,
+      data: {
+        ok: false,
+        msg: 'inserted'
+      },
+      template: '<div><comp><div v-if="ok">{{ msg }}</div></comp></div>',
+      components: {
+        comp: {
+          data: function () {
+            return { msg: 'fallback' }
+          },
+          template: '<div><slot>{{ msg }}</slot></div>'
+        }
+      }
+    })
+    expect(el.textContent).toBe('fallback')
+    vm.ok = true
+    nextTick(function () {
+      expect(el.textContent).toBe('inserted')
+      done()
+    })
+  })
+
+  // #2435
+  it('slot inside template', function () {
+    var vm = new Vue({
+      el: el,
+      template: '<test>hi</test>',
+      components: {
+        test: {
+          data: function () {
+            return { ok: true }
+          },
+          template:
+            '<div>' +
+              '<template v-if="ok">' +
+                '<template v-if="ok">' +
+                  '<slot>{{ msg }}</slot>' +
+                '</template>' +
+              '</template>' +
+            '</div>'
+        }
+      }
+    })
+    expect(vm.$el.textContent).toBe('hi')
+  })
+
+  it('warn dynamic slot attribute', function () {
+    new Vue({
+      el: el,
+      template: '<test><div :slot="1"></div></test>',
+      components: {
+        test: {
+          template: '<div><slot></slot></div>'
+        }
+      }
+    })
+    expect('"slot" attribute must be static').toHaveBeenWarned()
+  })
 })

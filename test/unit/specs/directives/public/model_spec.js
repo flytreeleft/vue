@@ -34,13 +34,11 @@ function updateSelect (el, value) {
 }
 
 describe('v-model', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
     el.style.display = 'none'
     document.body.appendChild(el)
-    spyWarns()
   })
 
   it('radio buttons', function (done) {
@@ -500,6 +498,7 @@ describe('v-model', function () {
     _.nextTick(function () {
       expect(el.firstChild.value).toBe('cc')
       expect(vm.test).toBe('cc')
+      trigger(el.firstChild, 'change')
       trigger(el.firstChild, 'blur')
       _.nextTick(function () {
         expect(el.firstChild.value).toBe('CC')
@@ -530,6 +529,7 @@ describe('v-model', function () {
     _.nextTick(function () {
       expect(el.firstChild.value).toBe('cc')
       expect(vm.test).toBe('CC')
+      trigger(el.firstChild, 'change')
       trigger(el.firstChild, 'blur')
       _.nextTick(function () {
         expect(el.firstChild.value).toBe('CC')
@@ -638,7 +638,7 @@ describe('v-model', function () {
       el: el,
       template: '<div v-model="test"></div>'
     })
-    expect(hasWarned('does not support element type')).toBe(true)
+    expect('does not support element type').toHaveBeenWarned()
   })
 
   it('warn read-only filters', function () {
@@ -651,7 +651,7 @@ describe('v-model', function () {
         }
       }
     })
-    expect(hasWarned('read-only filter')).toBe(true)
+    expect('read-only filter').toHaveBeenWarned()
   })
 
   it('support jQuery change event', function (done) {
@@ -713,7 +713,8 @@ describe('v-model', function () {
       expect(vm.test).toBe('d')
       setTimeout(function () {
         el.firstChild.value = 'e'
-        // blur should trigger change instantly without debounce
+        // change should trigger change instantly without debounce
+        trigger(el.firstChild, 'change')
         trigger(el.firstChild, 'blur')
         _.nextTick(function () {
           expect(spy.calls.count()).toBe(2)

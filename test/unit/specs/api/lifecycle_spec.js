@@ -2,16 +2,13 @@ var Vue = require('src')
 var compiler = require('src/compiler')
 
 describe('Lifecycle API', function () {
-
   describe('$mount', function () {
-
     var el, frag
     beforeEach(function () {
       el = document.createElement('div')
       el.textContent = '{{test}}'
       frag = document.createDocumentFragment()
       frag.appendChild(el)
-      spyWarns()
     })
 
     it('normal', function () {
@@ -55,7 +52,7 @@ describe('Lifecycle API', function () {
     it('warn invalid selector', function () {
       var vm = new Vue()
       vm.$mount('#none-exist')
-      expect(hasWarned('Cannot find element')).toBe(true)
+      expect('Cannot find element').toHaveBeenWarned()
     })
 
     it('replace', function () {
@@ -143,13 +140,11 @@ describe('Lifecycle API', function () {
         el: el
       })
       vm.$mount(el)
-      expect(hasWarned('$mount() should be called only once')).toBe(true)
+      expect('$mount() should be called only once').toHaveBeenWarned()
     })
-
   })
 
   describe('$destroy', function () {
-
     it('normal', function () {
       var vm = new Vue()
       expect(vm._isDestroyed).toBe(false)
@@ -296,11 +291,9 @@ describe('Lifecycle API', function () {
         vm.$destroy()
       }).not.toThrow()
     })
-
   })
 
   describe('$compile', function () {
-
     it('should partial compile and teardown stuff', function (done) {
       var el = document.createElement('div')
       var vm = new Vue({
@@ -325,7 +318,5 @@ describe('Lifecycle API', function () {
         done()
       })
     })
-
   })
-
 })

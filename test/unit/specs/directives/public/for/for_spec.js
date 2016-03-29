@@ -1,29 +1,13 @@
 var _ = require('src/util')
 var Vue = require('src')
-var config = require('src/config')
 
 describe('v-for', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
-    spyWarns()
-    config.convertAllProperties = false
   })
 
   it('objects', function (done) {
-    var vm = new Vue({
-      el: el,
-      data: {
-        items: [{a: 1}, {a: 2}]
-      },
-      template: '<div v-for="item in items">{{$index}} {{item.a}}</div>'
-    })
-    assertMutations(vm, el, done)
-  })
-
-  it('objects with convertAllProperties on', function (done) {
-    config.convertAllProperties = true
     var vm = new Vue({
       el: el,
       data: {
@@ -121,6 +105,28 @@ describe('v-for', function () {
       }
     })
     expect(el.innerHTML).toBe('<div>aaa a</div><div>bbb b</div>')
+  })
+
+  it('check priorities: v-if before v-for', function () {
+    new Vue({
+      el: el,
+      data: {
+        items: [1, 2, 3]
+      },
+      template: '<div v-if="item < 3" v-for="item in items">{{item}}</div>'
+    })
+    expect(el.textContent).toBe('12')
+  })
+
+  it('check priorities: v-if after v-for', function () {
+    new Vue({
+      el: el,
+      data: {
+        items: [1, 2, 3]
+      },
+      template: '<div v-for="item in items" v-if="item < 3">{{item}}</div>'
+    })
+    expect(el.textContent).toBe('12')
   })
 
   it('component', function (done) {
@@ -479,7 +485,6 @@ describe('v-for', function () {
   })
 
   it('track by id', function (done) {
-
     var vm = new Vue({
       el: el,
       template: '<test v-for="item in list" :item="item" track-by="id"></test>',
@@ -567,7 +572,7 @@ describe('v-for', function () {
       el: el,
       template: '<div v-for="items"></div>'
     })
-    expect(hasWarned('Alias is required in v-for')).toBe(true)
+    expect('alias is required').toHaveBeenWarned()
   })
 
   it('warn duplicate objects', function () {
@@ -579,7 +584,7 @@ describe('v-for', function () {
         items: [obj, obj]
       }
     })
-    expect(hasWarned('Duplicate value')).toBe(true)
+    expect('Duplicate value').toHaveBeenWarned()
   })
 
   it('warn duplicate objects on diff', function (done) {
@@ -594,7 +599,7 @@ describe('v-for', function () {
     expect(getWarnCount()).toBe(0)
     vm.items.push(obj)
     _.nextTick(function () {
-      expect(hasWarned('Duplicate value')).toBe(true)
+      expect('Duplicate value').toHaveBeenWarned()
       done()
     })
   })
@@ -607,7 +612,7 @@ describe('v-for', function () {
         items: [{id: 1}, {id: 1}]
       }
     })
-    expect(hasWarned('Duplicate value')).toBe(true)
+    expect('Duplicate value').toHaveBeenWarned()
   })
 
   it('key val syntax with object', function (done) {
@@ -741,7 +746,7 @@ describe('v-for', function () {
       }
     })
     trigger(vm.$el.querySelector('input'), 'input')
-    expect(hasWarned('It seems you are using two-way binding')).toBe(true)
+    expect('It seems you are using two-way binding').toHaveBeenWarned()
   })
 
   it('nested track by', function (done) {
@@ -889,7 +894,7 @@ describe('v-for', function () {
         ready: false
       }
     })
-    expect(vm.$els.a instanceof Element).toBe(true)
+    expect(vm.$els.a.nodeType).toBe(1)
     expect(vm.$els.a.innerHTML).toContain('<div>0</div><div>0</div>')
     vm.ready = true
     vm.$nextTick(function () {

@@ -1,4 +1,4 @@
-import { warn, setClass } from '../../util/index'
+import { warn, setClass, camelize } from '../../util/index'
 import { BIND } from '../priorities'
 import vStyle from '../internal/style'
 import { tokensToExp } from '../../parsers/text'
@@ -12,6 +12,9 @@ const disallowedInterpAttrRE = /^v-|^:|^@|^(?:is|transition|transition-mode|debo
 // these attributes should also set their corresponding properties
 // because they only affect the initial state of the element
 const attrWithPropsRE = /^(?:value|checked|selected|muted)$/
+// these attributes expect enumrated values of "true" or "false"
+// but are not boolean attributes
+const enumeratedAttrRE = /^(?:draggable|contenteditable|spellcheck)$/
 
 // these attributes should set a hidden property for
 // binding v-model to object values
@@ -49,7 +52,8 @@ export default {
         process.env.NODE_ENV !== 'production' && warn(
           attr + '="' + descriptor.raw + '": ' +
           'attribute interpolation is not allowed in Vue.js ' +
-          'directives and special attributes.'
+          'directives and special attributes.',
+          this.vm
         )
         this.el.removeAttribute(attr)
         this.invalid = true
@@ -62,7 +66,8 @@ export default {
         if (attr === 'src') {
           warn(
             raw + 'interpolation in "src" attribute will cause ' +
-            'a 404 request. Use v-bind:src instead.'
+            'a 404 request. Use v-bind:src instead.',
+            this.vm
           )
         }
 
@@ -71,7 +76,8 @@ export default {
           warn(
             raw + 'interpolation in "style" attribute will cause ' +
             'the attribute to be discarded in Internet Explorer. ' +
-            'Use v-bind:style instead.'
+            'Use v-bind:style instead.',
+            this.vm
           )
         }
       }
@@ -96,6 +102,9 @@ export default {
   handleSingle (attr, value) {
     const el = this.el
     const interp = this.descriptor.interp
+    if (this.modifiers.camel) {
+      attr = camelize(attr)
+    }
     if (
       !interp &&
       attrWithPropsRE.test(attr) &&
@@ -123,7 +132,9 @@ export default {
       return
     }
     // update attribute
-    if (value != null && value !== false) {
+    if (enumeratedAttrRE.test(attr)) {
+      el.setAttribute(attr, value ? 'true' : 'false')
+    } else if (value != null && value !== false) {
       if (attr === 'class') {
         // handle edge case #1960:
         // class interpolation should not overwrite Vue transition class
@@ -132,9 +143,9 @@ export default {
         }
         setClass(el, value)
       } else if (xlinkRE.test(attr)) {
-        el.setAttributeNS(xlinkNS, attr, value)
+        el.setAttributeNS(xlinkNS, attr, value === true ? '' : value)
       } else {
-        el.setAttribute(attr, value)
+        el.setAttribute(attr, value === true ? '' : value)
       }
     } else {
       el.removeAttribute(attr)

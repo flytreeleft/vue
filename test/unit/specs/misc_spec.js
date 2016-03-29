@@ -3,11 +3,6 @@ var Vue = require('src')
 var _ = Vue.util
 
 describe('Misc', function () {
-
-  beforeEach(function () {
-    spyWarns()
-  })
-
   it('should handle directive.bind() altering its childNode structure', function () {
     var vm = new Vue({
       el: document.createElement('div'),
@@ -319,7 +314,7 @@ describe('Misc', function () {
       el: document.createElement('div'),
       template: '<custom-stuff></custom-stuff>'
     })
-    expect(hasWarned('Unknown custom element')).toBe(true)
+    expect('Unknown custom element').toHaveBeenWarned()
   })
 
   it('prefer bound attributes over static attributes', function (done) {
@@ -343,13 +338,13 @@ describe('Misc', function () {
     new Vue({
       el: el,
       template:
-        '<div>\
-          <comp v-bind:title="title"></comp>\
-          <comp title="static" v-bind:title="title"></comp>\
-          <comp title="static"></comp>\
-          <comp :title="title"></comp>\
-          <comp title="static" :title="title"></comp>\
-        </div>',
+        '<div>' +
+          '<comp v-bind:title="title"></comp>' +
+          '<comp title="static" v-bind:title="title"></comp>' +
+          '<comp title="static"></comp>' +
+          '<comp :title="title"></comp>' +
+          '<comp title="static" :title="title"></comp>' +
+        '</div>',
       data: {
         title: 'bound'
       },
@@ -401,11 +396,11 @@ describe('Misc', function () {
       components: {
         test: {
           replace: true,
-          template: '<div :class="{\'inner\': true}"></div>'
+          template: '<div class="static-inner" :class="{\'inner\': true}"></div>'
         }
       }
     })
-    expect(vm.$el.firstChild.className).toBe('outer inner')
+    expect(vm.$el.firstChild.className).toBe('static-inner outer inner')
   })
 
   it('SVG class interpolation', function () {
@@ -473,5 +468,73 @@ describe('Misc', function () {
       }
     })
     expect(vm.$el.textContent).toBe('default content slot1')
+  })
+
+  // #2426
+  it('class merge untrimmed', function () {
+    expect(function () {
+      new Vue({
+        el: document.createElement('div'),
+        template: '<test class="p1 p2 "></test>',
+        components: {
+          test: {
+            template: '<div class="hi"></div>',
+            replace: true
+          }
+        }
+      })
+    }).not.toThrow()
+  })
+
+  // #2445
+  it('fragment attach hook should check if child is inDoc', function (done) {
+    var el = document.createElement('div')
+    document.body.appendChild(el)
+    var spyParent = jasmine.createSpy('attached parent')
+    var spyChild = jasmine.createSpy('attached child')
+
+    new Vue({
+      el: el,
+      template: '<comp v-for="n in 1"></comp>',
+      components: {
+        comp: {
+          template: '<div><child></child></div>',
+          attached: function () {
+            expect(_.inDoc(this.$el)).toBe(true)
+            spyParent()
+          },
+          activate: function (next) {
+            setTimeout(function () {
+              next()
+              check()
+            }, 100)
+          },
+          components: {
+            child: {
+              template: 'yo',
+              attached: spyChild
+            }
+          }
+        }
+      }
+    })
+
+    function check () {
+      expect(spyParent).toHaveBeenCalled()
+      expect(spyChild).toHaveBeenCalled()
+      done()
+    }
+  })
+
+  // #2500
+  it('template parser tag match should include hyphen', function () {
+    var vm = new Vue({
+      el: document.createElement('div'),
+      template: '<div>{{{ test }}}</div>',
+      data: {
+        test: '<image-field></image-field>'
+      }
+    })
+    expect(vm.$el.querySelector('image-field').namespaceURI).not.toMatch(/svg/)
   })
 })

@@ -2,11 +2,9 @@ var _ = require('src/util')
 var Vue = require('src')
 
 describe('el', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
-    spyWarns()
   })
 
   it('normal', function (done) {
@@ -38,5 +36,4 @@ describe('el', function () {
     })
     expect(vm.$el.textContent).toBe('1122')
   })
-
 })

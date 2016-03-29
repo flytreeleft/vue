@@ -1,5 +1,10 @@
-import { inBrowser, trimNode, isTemplate } from '../util/index'
 import Cache from '../cache'
+import {
+  inBrowser,
+  trimNode,
+  isTemplate,
+  isFragment
+} from '../util/index'
 
 const templateCache = new Cache(1000)
 const idSelectorCache = new Cache(1000)
@@ -66,11 +71,10 @@ map.rect = [
  */
 
 function isRealTemplate (node) {
-  return isTemplate(node) &&
-    node.content instanceof DocumentFragment
+  return isTemplate(node) && isFragment(node.content)
 }
 
-const tagRE = /<([\w:]+)/
+const tagRE = /<([\w:-]+)/
 const entityRE = /&#?\w+?;/
 
 /**
@@ -85,7 +89,10 @@ const entityRE = /&#?\w+?;/
 
 function stringToFragment (templateString, raw) {
   // try a cache hit first
-  var hit = templateCache.get(templateString)
+  var cacheKey = raw
+    ? templateString
+    : templateString.trim()
+  var hit = templateCache.get(cacheKey)
   if (hit) {
     return hit
   }
@@ -100,7 +107,6 @@ function stringToFragment (templateString, raw) {
       document.createTextNode(templateString)
     )
   } else {
-
     var tag = tagMatch && tagMatch[1]
     var wrap = map[tag] || map.efault
     var depth = wrap[0]
@@ -108,8 +114,7 @@ function stringToFragment (templateString, raw) {
     var suffix = wrap[2]
     var node = document.createElement('div')
 
-    var templateStringToUse = raw ? templateString : templateString.trim()
-    node.innerHTML = prefix + templateStringToUse + suffix
+    node.innerHTML = prefix + templateString + suffix
     while (depth--) {
       node = node.lastChild
     }
@@ -121,8 +126,10 @@ function stringToFragment (templateString, raw) {
       frag.appendChild(child)
     }
   }
-
-  templateCache.put(templateString, frag)
+  if (!raw) {
+    trimNode(frag)
+  }
+  templateCache.put(cacheKey, frag)
   return frag
 }
 
@@ -193,6 +200,7 @@ var hasTextareaCloneBug = (function () {
  */
 
 export function cloneNode (node) {
+  /* istanbul ignore if */
   if (!node.querySelectorAll) {
     return node.cloneNode()
   }
@@ -258,7 +266,7 @@ export function parseTemplate (template, shouldClone, raw) {
 
   // if the template is already a document fragment,
   // do nothing
-  if (template instanceof DocumentFragment) {
+  if (isFragment(template)) {
     trimNode(template)
     return shouldClone
       ? cloneNode(template)
