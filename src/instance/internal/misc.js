@@ -58,6 +58,11 @@ export default function (Vue) {
       factory = value
     } else {
       factory = resolveAsset(this.$options, 'components', value, true)
+      if (!factory) {
+        // continue search in Vue.options.components
+        // which maybe register new component dynamically
+        factory = resolveAsset(Vue.options.components, 'components', value, true)
+      }
     }
     if (!factory) {
       return
