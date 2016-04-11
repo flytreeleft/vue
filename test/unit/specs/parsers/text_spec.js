@@ -5,7 +5,7 @@ var config = require('src/config')
 var testCases = [
   {
     // no tags
-    text: 'haha',
+    text: 'foo',
     expected: null
   },
   {
@@ -48,6 +48,15 @@ var testCases = [
     text: '{{\n  value  \n}}',
     expected: [
       { tag: true, value: 'value', html: false, oneTime: false }
+    ]
+  },
+  // new lines preserved outside of tags
+  {
+    text: 'hello\n{{value}}\nworld',
+    expected: [
+        { value: 'hello\n' },
+        { tag: true, value: 'value', html: false, oneTime: false },
+        { value: '\nworld' }
     ]
   }
 ]

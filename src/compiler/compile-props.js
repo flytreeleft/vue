@@ -1,6 +1,7 @@
 import config from '../config'
 import { parseDirective } from '../parsers/directive'
-import { defineReactive } from '../observer/index'
+import { isSimplePath } from '../parsers/expression'
+import { defineReactive, withoutConversion } from '../observer/index'
 import propDef from '../directives/internal/prop'
 import {
   extend,
@@ -247,6 +248,37 @@ function makePropsLinkFn (props) {
 }
 
 /**
+ * Process a prop with a rawValue, applying necessary coersions,
+ * default values & assertions and call the given callback with
+ * processed value.
+ *
+ * @param {Vue} vm
+ * @param {Object} prop
+ * @param {*} rawValue
+ * @param {Function} fn
+ */
+
+function processPropValue (vm, prop, rawValue, fn) {
+  const isSimple = prop.dynamic && isSimplePath(prop.parentPath)
+  let value = rawValue
+  if (value === undefined) {
+    value = getPropDefaultValue(vm, prop)
+  }
+  value = coerceProp(prop, value)
+  const coerced = value !== rawValue
+  if (!assertProp(prop, value, vm)) {
+    value = undefined
+  }
+  if (isSimple && !coerced) {
+    withoutConversion(() => {
+      fn(value)
+    })
+  } else {
+    fn(value)
+  }
+}
+
+/**
  * Set a prop's initial value on a vm and its data object.
  *
  * @param {Vue} vm
@@ -255,15 +287,23 @@ function makePropsLinkFn (props) {
  */
 
 export function initProp (vm, prop, value) {
-  const key = prop.path
-  value = coerceProp(prop, value)
-  if (value === undefined) {
-    value = getPropDefaultValue(vm, prop)
-  }
-  if (!assertProp(prop, value, vm)) {
-    value = undefined
-  }
-  defineReactive(vm.props, key, value)
+  processPropValue(vm, prop, value, value => {
+    defineReactive(vm.props, prop.path, value)
+  })
+}
+
+/**
+ * Update a prop's value on a vm.
+ *
+ * @param {Vue} vm
+ * @param {Object} prop
+ * @param {*} value
+ */
+
+export function updateProp (vm, prop, value) {
+  processPropValue(vm, prop, value, value => {
+    vm.props[prop.path] = value
+  })
 }
 
 /**
@@ -307,7 +347,7 @@ function getPropDefaultValue (vm, prop) {
  * @param {Vue} vm
  */
 
-export function assertProp (prop, value, vm) {
+function assertProp (prop, value, vm) {
   if (
     !prop.options.required && ( // non-required
       prop.raw === null ||      // abscent
@@ -362,7 +402,7 @@ export function assertProp (prop, value, vm) {
  * @return {*}
  */
 
-export function coerceProp (prop, value) {
+function coerceProp (prop, value) {
   var coerce = prop.options.coerce
   if (!coerce) {
     return value
@@ -370,6 +410,14 @@ export function coerceProp (prop, value) {
   // coerce is a function
   return coerce(value)
 }
+
+/**
+ * Assert the type of a value
+ *
+ * @param {*} value
+ * @param {Function} type
+ * @return {Object}
+ */
 
 function assertType (value, type) {
   var valid
@@ -401,11 +449,25 @@ function assertType (value, type) {
   }
 }
 
+/**
+ * Format type for output
+ *
+ * @param {String} type
+ * @return {String}
+ */
+
 function formatType (type) {
   return type
     ? type.charAt(0).toUpperCase() + type.slice(1)
     : 'custom type'
 }
+
+/**
+ * Format value
+ *
+ * @param {*} value
+ * @return {String}
+ */
 
 function formatValue (val) {
   return Object.prototype.toString.call(val).slice(8, -1)

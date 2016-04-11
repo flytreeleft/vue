@@ -9,9 +9,7 @@
   <a href="https://www.npmjs.com/package/vue"><img src="https://img.shields.io/npm/l/vue.svg" alt="License"></a>
 </p>
 
-## New Features
-
-There are some unofficial features:
+## Unofficial Features
 
 - Separate `props` from `data`, the component properties can be and only be accessed like `props.anyProp`. Note that the property and state can be the same name, they have no impact on each other
 - Pre-define properties in `props` isn't needed, any properties in component tag can be accessed by `props`, meanwhile, `v-bind` is still supported
