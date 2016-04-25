@@ -401,6 +401,8 @@
   var UA = inBrowser && window.navigator.userAgent.toLowerCase();
   var isIE9 = UA && UA.indexOf('msie 9.0') > 0;
   var isAndroid = UA && UA.indexOf('android') > 0;
+  var isIos = UA && /(iphone|ipad|ipod|ios)/i.test(UA);
+  var isWechat = UA && UA.indexOf('micromessenger') > 0;
 
   var transitionProp = undefined;
   var transitionEndEvent = undefined;
@@ -441,7 +443,7 @@
     }
 
     /* istanbul ignore if */
-    if (typeof MutationObserver !== 'undefined') {
+    if (typeof MutationObserver !== 'undefined' && !(isWechat && isIos)) {
       var counter = 1;
       var observer = new MutationObserver(nextTickHandler);
       var textNode = document.createTextNode(counter);
@@ -469,6 +471,27 @@
       timerFunc(nextTickHandler, 0);
     };
   })();
+
+  var Set$1 = undefined;
+  /* istanbul ignore if */
+  if (typeof Set !== 'undefined' && Set.toString().match(/native code/)) {
+    // use native Set when available.
+    Set$1 = Set;
+  } else {
+    // a non-standard Set polyfill that only works with primitive keys.
+    Set$1 = function () {
+      this.set = Object.create(null);
+    };
+    Set$1.prototype.has = function (key) {
+      return this.set[key] !== undefined;
+    };
+    Set$1.prototype.add = function (key) {
+      this.set[key] = 1;
+    };
+    Set$1.prototype.clear = function () {
+      this.set = Object.create(null);
+    };
+  }
 
   function Cache(limit) {
     this.size = 0;
@@ -1528,11 +1551,6 @@
       this._data = {};
       this.props = {};
 
-      // save raw constructor data before merge
-      // so that we know which properties are provided at
-      // instantiation.
-      this._runtimeData = options.data;
-
       // call init hook
       this._callHook('init');
 
@@ -2269,8 +2287,8 @@
     this.dirty = this.lazy; // for lazy watchers
     this.deps = [];
     this.newDeps = [];
-    this.depIds = Object.create(null);
-    this.newDepIds = null;
+    this.depIds = new Set$1();
+    this.newDepIds = new Set$1();
     this.prevError = null; // for async error stacks
     // parse expression for getter/setter
     if (isFn) {
@@ -2362,8 +2380,6 @@
 
   Watcher.prototype.beforeGet = function () {
     Dep.target = this;
-    this.newDepIds = Object.create(null);
-    this.newDeps.length = 0;
   };
 
   /**
@@ -2374,10 +2390,10 @@
 
   Watcher.prototype.addDep = function (dep) {
     var id = dep.id;
-    if (!this.newDepIds[id]) {
-      this.newDepIds[id] = true;
+    if (!this.newDepIds.has(id)) {
+      this.newDepIds.add(id);
       this.newDeps.push(dep);
-      if (!this.depIds[id]) {
+      if (!this.depIds.has(id)) {
         dep.addSub(this);
       }
     }
@@ -2392,14 +2408,18 @@
     var i = this.deps.length;
     while (i--) {
       var dep = this.deps[i];
-      if (!this.newDepIds[dep.id]) {
+      if (!this.newDepIds.has(dep.id)) {
         dep.removeSub(this);
       }
     }
+    var tmp = this.depIds;
     this.depIds = this.newDepIds;
-    var tmp = this.deps;
+    this.newDepIds = tmp;
+    this.newDepIds.clear();
+    tmp = this.deps;
     this.deps = this.newDeps;
     this.newDeps = tmp;
+    this.newDeps.length = 0;
   };
 
   /**
@@ -2523,26 +2543,35 @@
    * @param {*} val
    */
 
-  function traverse(val, walkedObjs) {
-    var i, keys;
-
-    !walkedObjs && (walkedObjs = {});
-    if (isArray(val)) {
-      i = val.length;
-      while (i--) traverse(val[i], walkedObjs);
-    } else if (isObject(val)) {
+  var seenObjects = new Set$1();
+  function traverse(val, seen) {
+    var i = undefined,
+        keys = undefined,
+        isA = undefined,
+        isO = undefined;
+    if (!seen) {
+      seen = seenObjects;
+      seen.clear();
+    }
+    isA = isArray(val);
+    isO = isObject(val);
+    if (isA || isO) {
       if (val.__ob__) {
         var depId = val.__ob__.dep.id;
-        if (walkedObjs[depId]) {
+        if (seen.has(depId)) {
           return;
         } else {
-          walkedObjs[depId] = true;
+          seen.add(depId);
         }
       }
-
-      keys = Object.keys(val);
-      i = keys.length;
-      while (i--) traverse(val[keys[i]], walkedObjs);
+      if (isA) {
+        i = val.length;
+        while (i--) traverse(val[i], seen);
+      } else if (isO) {
+        keys = Object.keys(val);
+        i = keys.length;
+        while (i--) traverse(val[keys[i]], seen);
+      }
     }
   }
 
@@ -2699,6 +2728,12 @@
     }
     var i = prefixes.length;
     var prefixed;
+    if (camel !== 'filter' && camel in testEl.style) {
+      return {
+        kebab: prop,
+        camel: camel
+      };
+    }
     while (i--) {
       prefixed = camelPrefixes[i] + upper;
       if (prefixed in testEl.style) {
@@ -2707,12 +2742,6 @@
           camel: prefixed
         };
       }
-    }
-    if (camel in testEl.style) {
-      return {
-        kebab: prop,
-        camel: camel
-      };
     }
   }
 
@@ -2940,7 +2969,7 @@
       }
       // key filter
       var keys = Object.keys(this.modifiers).filter(function (key) {
-        return key !== 'stop' && key !== 'prevent' && key !== 'self';
+        return key !== 'stop' && key !== 'prevent' && key !== 'self' && key !== 'capture';
       });
       if (keys.length) {
         handler = keyFilter(handler, keys);
@@ -3849,7 +3878,7 @@
     this.vm = vm;
     var template;
     var isString = typeof el === 'string';
-    if (isString || isTemplate(el)) {
+    if (isString || isTemplate(el) && !el.hasAttribute('v-if')) {
       template = parseTemplate(el, true);
     } else {
       template = document.createDocumentFragment();
@@ -4635,7 +4664,7 @@
       var primitive = !isObject(value);
       var id;
       if (key || trackByKey || primitive) {
-        id = trackByKey ? trackByKey === '$index' ? index : getPath(value, trackByKey) : key || value;
+        id = getTrackByKey(index, key, value, trackByKey);
         if (!cache[id]) {
           cache[id] = frag;
         } else if (trackByKey !== '$index') {
@@ -4670,7 +4699,7 @@
       var primitive = !isObject(value);
       var frag;
       if (key || trackByKey || primitive) {
-        var id = trackByKey ? trackByKey === '$index' ? index : getPath(value, trackByKey) : key || value;
+        var id = getTrackByKey(index, key, value, trackByKey);
         frag = this.cache[id];
       } else {
         frag = value[this.id];
@@ -4697,7 +4726,7 @@
       var key = hasOwn(scope, '$key') && scope.$key;
       var primitive = !isObject(value);
       if (trackByKey || key || primitive) {
-        var id = trackByKey ? trackByKey === '$index' ? index : getPath(value, trackByKey) : key || value;
+        var id = getTrackByKey(index, key, value, trackByKey);
         this.cache[id] = null;
       } else {
         value[this.id] = null;
@@ -4845,6 +4874,19 @@
       ret[i] = i;
     }
     return ret;
+  }
+
+  /**
+   * Get the track by key for an item.
+   *
+   * @param {Number} index
+   * @param {String} key
+   * @param {*} value
+   * @param {String} [trackByKey]
+   */
+
+  function getTrackByKey(index, key, value, trackByKey) {
+    return trackByKey ? trackByKey === '$index' ? index : trackByKey.charAt(0).match(/\w/) ? getPath(value, trackByKey) : value[trackByKey] : key || value;
   }
 
   if ('development' !== 'production') {
@@ -5495,6 +5537,7 @@
     return function propsLinkFn(vm, scope) {
       // store resolved props info
       vm._props = {};
+      var inlineProps = vm.$options.propsData;
       var i = props.length;
       var prop, path, options, value, raw;
       while (i--) {
@@ -5503,7 +5546,9 @@
         path = prop.path;
         options = prop.options;
         vm._props[path] = prop;
-        if (raw === null) {
+        if (inlineProps && hasOwn(inlineProps, path)) {
+          initProp(vm, prop, inlineProps[path]);
+        }if (raw === null) {
           // initialize absent prop
           initProp(vm, prop, undefined);
         } else if (prop.dynamic) {
@@ -5840,6 +5885,7 @@
         // cached, when the component is used elsewhere this attribute
         // will remain at link time.
         this.el.removeAttribute('is');
+        this.el.removeAttribute(':is');
         // remove ref, same as above
         if (this.descriptor.ref) {
           this.el.removeAttribute('v-ref:' + hyphenate(this.descriptor.ref));
@@ -6526,7 +6572,7 @@
       });
       if (names.length) {
         var plural = names.length > 1;
-        warn('Attribute' + (plural ? 's ' : ' ') + names.join(', ') + (plural ? ' are' : ' is') + ' ignored on component ' + '<' + options.el.tagName.toLowerCase() + '> because ' + 'the component is a fragment instance: ' + 'http://vuejs.org/guide/components.html#Fragment_Instance');
+        warn('Attribute' + (plural ? 's ' : ' ') + names.join(', ') + (plural ? ' are' : ' is') + ' ignored on component ' + '<' + options.el.tagName.toLowerCase() + '> because ' + 'the component is a fragment instance: ' + 'http://vuejs.org/guide/components.html#Fragment-Instance');
       }
     }
 
@@ -6889,7 +6935,6 @@
     var attr, name, value, modifiers, matched, dirName, rawName, arg, def, termDef;
     for (var i = 0, j = attrs.length; i < j; i++) {
       attr = attrs[i];
-      modifiers = parseModifiers(attr.name);
       name = attr.name.replace(modifierRE, '');
       if (matched = name.match(dirAttrRE)) {
         def = resolveAsset(options, 'directives', matched[1]);
@@ -6897,6 +6942,7 @@
           if (!termDef || (def.priority || DEFAULT_TERMINAL_PRIORITY) > termDef.priority) {
             termDef = def;
             rawName = attr.name;
+            modifiers = parseModifiers(attr.name);
             value = attr.value;
             dirName = matched[1];
             arg = matched[2];
@@ -7386,7 +7432,6 @@
         'development' !== 'production' && warn('data functions should return an object.', this);
       }
       //var props = this._props
-      var runtimeData = this._runtimeData ? typeof this._runtimeData === 'function' ? this._runtimeData() : this._runtimeData : null;
       // proxy data on instance
       var keys = Object.keys(data);
       var i, key;
@@ -7398,15 +7443,14 @@
         // 1. it's not already defined as a prop
         // 2. it's provided via a instantiation option AND there are no
         //    template prop present
-        //if (
-        //  !props || !hasOwn(props, key) ||
-        //  (runtimeData && hasOwn(runtimeData, key) && props[key].raw === null)
-        //) {
+        //if (!props || !hasOwn(props, key)) {
         //  this._proxy(key)
         //} else if ('development' !== 'production') {
         //  warn(
         //    'Data field "' + key + '" is already defined ' +
-        //    'as a prop. Use prop default value instead.',
+        //    'as a prop. To provide default value for a prop, use the "default" ' +
+        //    'prop option; if you want to pass prop values to an instantiation ' +
+        //    'call, use the "propsData" option.',
         //    this
         //  )
         //}
@@ -7598,18 +7642,21 @@
 
     function registerComponentEvents(vm, el) {
       var attrs = el.attributes;
-      var name, handler;
+      var name, value, handler;
       for (var i = 0, l = attrs.length; i < l; i++) {
         name = attrs[i].name;
         if (eventRE.test(name)) {
           name = name.replace(eventRE, '');
-          handler = (vm._scope || vm._context).$eval(attrs[i].value, true);
-          if (typeof handler === 'function') {
-            handler._fromParent = true;
-            vm.$on(name.replace(eventRE), handler);
-          } else if ('development' !== 'production') {
-            warn('v-on:' + name + '="' + attrs[i].value + '" ' + 'expects a function value, got ' + handler, vm);
+          // force the expression into a statement so that
+          // it always dynamically resolves the method to call (#2670)
+          // kinda ugly hack, but does the job.
+          value = attrs[i].value;
+          if (isSimplePath(value)) {
+            value += '.apply(this, $arguments)';
           }
+          handler = (vm._scope || vm._context).$eval(value, true);
+          handler._fromParent = true;
+          vm.$on(name.replace(eventRE), handler);
         }
       }
     }
@@ -8392,7 +8439,7 @@
     Vue.prototype.$get = function (exp, asStatement) {
       var res = parseExpression(exp);
       if (res) {
-        if (asStatement && !isSimplePath(exp)) {
+        if (asStatement) {
           var self = this;
           return function statementHandler() {
             self.$arguments = toArray(arguments);
@@ -9065,7 +9112,7 @@
       if (resolveAsset(options, 'components', tag)) {
         return { id: tag };
       } else {
-        var is = hasAttrs && getIsBinding(el);
+        var is = hasAttrs && getIsBinding(el, options);
         if (is) {
           return is;
         } else if ('development' !== 'production') {
@@ -9078,7 +9125,7 @@
         }
       }
     } else if (hasAttrs) {
-      return getIsBinding(el);
+      return getIsBinding(el, options);
     }
   }
 
@@ -9086,14 +9133,18 @@
    * Get "is" binding from an element.
    *
    * @param {Element} el
+   * @param {Object} options
    * @return {Object|undefined}
    */
 
-  function getIsBinding(el) {
+  function getIsBinding(el, options) {
     // dynamic syntax
-    var exp = getAttr(el, 'is');
+    var exp = el.getAttribute('is');
     if (exp != null) {
-      return { id: exp };
+      if (resolveAsset(options, 'components', exp)) {
+        el.removeAttribute('is');
+        return { id: exp };
+      }
     } else {
       exp = getBindAttr(el, 'is');
       if (exp != null) {
@@ -9363,6 +9414,11 @@
   function mergeOptions(parent, child, vm) {
     guardComponents(child);
     guardProps(child);
+    if ('development' !== 'production') {
+      if (child.propsData && !vm) {
+        warn('propsData can only be used as an instantiation option.');
+      }
+    }
     var options = {};
     var key;
     if (child.mixins) {
@@ -9445,11 +9501,14 @@
   	devtools: devtools,
   	isIE9: isIE9,
   	isAndroid: isAndroid,
+  	isIos: isIos,
+  	isWechat: isWechat,
   	get transitionProp () { return transitionProp; },
   	get transitionEndEvent () { return transitionEndEvent; },
   	get animationProp () { return animationProp; },
   	get animationEndEvent () { return animationEndEvent; },
   	nextTick: nextTick,
+  	get _Set () { return Set$1; },
   	query: query,
   	inDoc: inDoc,
   	inIframe: inIframe,
@@ -9769,17 +9828,19 @@
      * 12345 => $12,345.00
      *
      * @param {String} sign
+     * @param {Number} decimals Decimal places
      */
 
-    currency: function currency(value, _currency) {
+    currency: function currency(value, _currency, decimals) {
       value = parseFloat(value);
       if (!isFinite(value) || !value && value !== 0) return '';
       _currency = _currency != null ? _currency : '$';
-      var stringified = Math.abs(value).toFixed(2);
-      var _int = stringified.slice(0, -3);
+      decimals = decimals != null ? decimals : 2;
+      var stringified = Math.abs(value).toFixed(decimals);
+      var _int = decimals ? stringified.slice(0, -1 - decimals) : stringified;
       var i = _int.length % 3;
       var head = i > 0 ? _int.slice(0, i) + (_int.length > 3 ? ',' : '') : '';
-      var _float = stringified.slice(-3);
+      var _float = decimals ? stringified.slice(-1 - decimals) : '';
       var sign = value < 0 ? '-' : '';
       return sign + _currency + head + _int.slice(i).replace(digitsRE, '$1,') + _float;
     },
