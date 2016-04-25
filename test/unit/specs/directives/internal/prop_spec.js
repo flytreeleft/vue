@@ -601,18 +601,27 @@ describe('prop', function () {
     expect('already defined as a prop').toHaveBeenWarned()
   })
 
-  it('should not warn data fields already defined as a prop if it is from instantiation call', function () {
+  it('propsData options', function () {
     var vm = new Vue({
       el: el,
       props: {
         a: null
       },
-      data: {
+      propsData: {
         a: 123
       }
     })
     expect(getWarnCount()).toBe(0)
     expect(vm.a).toBe(123)
+  })
+
+  it('should warn using propsData during extension', function () {
+    Vue.extend({
+      propsData: {
+        a: 123
+      }
+    })
+    expect('propsData can only be used as an instantiation option').toHaveBeenWarned()
   })
 
   it('should not warn for non-required, absent prop', function () {

@@ -425,11 +425,7 @@ const vFor = {
     var primitive = !isObject(value)
     var id
     if (key || trackByKey || primitive) {
-      id = trackByKey
-        ? trackByKey === '$index'
-          ? index
-          : getPath(value, trackByKey)
-        : (key || value)
+      id = getTrackByKey(index, key, value, trackByKey)
       if (!cache[id]) {
         cache[id] = frag
       } else if (trackByKey !== '$index') {
@@ -466,11 +462,7 @@ const vFor = {
     var primitive = !isObject(value)
     var frag
     if (key || trackByKey || primitive) {
-      var id = trackByKey
-        ? trackByKey === '$index'
-          ? index
-          : getPath(value, trackByKey)
-        : (key || value)
+      var id = getTrackByKey(index, key, value, trackByKey)
       frag = this.cache[id]
     } else {
       frag = value[this.id]
@@ -498,11 +490,7 @@ const vFor = {
     var key = hasOwn(scope, '$key') && scope.$key
     var primitive = !isObject(value)
     if (trackByKey || key || primitive) {
-      var id = trackByKey
-        ? trackByKey === '$index'
-          ? index
-          : getPath(value, trackByKey)
-        : (key || value)
+      var id = getTrackByKey(index, key, value, trackByKey)
       this.cache[id] = null
     } else {
       value[this.id] = null
@@ -655,6 +643,25 @@ function range (n) {
     ret[i] = i
   }
   return ret
+}
+
+/**
+ * Get the track by key for an item.
+ *
+ * @param {Number} index
+ * @param {String} key
+ * @param {*} value
+ * @param {String} [trackByKey]
+ */
+
+function getTrackByKey (index, key, value, trackByKey) {
+  return trackByKey
+    ? trackByKey === '$index'
+      ? index
+      : trackByKey.charAt(0).match(/\w/)
+        ? getPath(value, trackByKey)
+        : value[trackByKey]
+    : (key || value)
 }
 
 if (process.env.NODE_ENV !== 'production') {

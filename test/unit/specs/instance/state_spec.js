@@ -9,6 +9,27 @@ describe('Instance state initialization', function () {
     expect('should return an object').toHaveBeenWarned()
   })
 
+  it('should initialize data once per strat', function () {
+    var spyOncePerStrat = jasmine.createSpy('called once per strat')
+    const VM = Vue.extend({
+      data: function () {
+        spyOncePerStrat()
+        return {
+          result: 'false'
+        }
+      }
+    })
+    new VM({
+      data: function () {
+        spyOncePerStrat()
+        return {
+          result: 'true'
+        }
+      }
+    })
+    expect(spyOncePerStrat.calls.count()).toBe(2)
+  })
+
   describe('data proxy', function () {
     var data = {
       a: 0,
@@ -43,17 +64,6 @@ describe('Instance state initialization', function () {
         props: ['c']
       })
       expect(_.hasOwn(vm, 'c')).toBe(true)
-    })
-
-    it('should use default prop value if prop not provided', function () {
-      var vm = new Vue({
-        el: document.createElement('div'),
-        props: ['c'],
-        data: {
-          c: 1
-        }
-      })
-      expect(vm.c).toBe(1)
     })
 
     it('external prop should overwrite default value', function () {
