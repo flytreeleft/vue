@@ -4456,8 +4456,6 @@
           // new instance, or still in stagger.
           // insert with updated stagger index.
           this.insert(frag, insertionIndex++, prevEl, inDocument);
-          // call vue instance attached event
-          this.callAttach(frag);
         }
         frag.reused = frag.fresh = false;
       }
@@ -4503,6 +4501,15 @@
       }
       var frag = this.factory.create(host, scope, this._frag);
       frag.forId = this.id;
+      // change _frag to the actual fragment for attach/detach correctly
+      if (isObject(value) && value._isVue) {
+        var vm = value;
+        if (vm._frag !== frag) {
+          vm._frag && vm._frag.children.$remove(vm);
+          vm._frag = frag;
+          frag.children.push(vm);
+        }
+      }
       this.cacheFrag(value, frag, index, key);
       return frag;
     },
@@ -4575,25 +4582,6 @@
         setTimeout(op, staggerAmount);
       } else {
         frag.before(prevEl.nextSibling);
-      }
-    },
-
-    /**
-     * Call child component attached.
-     *
-     * If the `frag` isn't a vue component,
-     * it will do nothing.
-     *
-     * NOTE: In nested components, the child component
-     * will be attached when executing v-for.
-     *
-     * @param {Fragment} frag
-     */
-
-    callAttach: function callAttach(frag) {
-      var raw = frag.raw;
-      if (isObject(raw) && hasOwn(raw, '_isVue') && raw._isVue && !raw._isAttached && inDoc(raw.$el)) {
-        raw._callHook('attached');
       }
     },
 
@@ -4941,13 +4929,24 @@
 
     update: function update(value) {
       if (value && value._isVue) {
-        var el = value.$el;
-        // TODO maybe there is a more smart way to get the element of the real vue wrapped by fragment?
-        // TODO fire attached event
-        if (value._isFragment) {
-          el = value.$children[0].$el;
+        var vm = value;
+        var oldVm = this.el.__vue__;
+        if (oldVm === vm) {
+          return;
         }
-        replace(this.el, el);
+
+        var el = this.el;
+        var cb = function cb() {
+          if (oldVm) {
+            // just remove from DOM, do not destroy instance
+            oldVm.$remove();
+          } else {
+            remove(el);
+          }
+        };
+        // NOTE: the vm will be attached in vFor directive
+        vm.$before(el, cb);
+        this.el = vm.$el;
       } else {
         this.el[this.attr] = _toString(value);
       }
@@ -5642,7 +5641,7 @@
 
   function updateProp(vm, prop, value) {
     processPropValue(vm, prop, value, function (value) {
-      vm.props[prop.path] = value;
+      prop.path !== 'children' && (vm.props[prop.path] = value);
     });
   }
 
@@ -6054,37 +6053,16 @@
         if (extraOptions) {
           extend(options, extraOptions);
         }
-
-        var childDirs = this.descriptor.children || [];
-        if (!options.props) {
-          options.props = {};
-        }
-        options.props.children = {
-          type: Array,
-          'default': function _default() {
-            var children = [];
-            for (var i = 0, l = childDirs.length; i < l; i++) {
-              var child = childDirs[i];
-              if (child.childVM) {
-                child.bindVM(this, child.childVM, i);
-
-                children.push(child.childVM);
-              }
-            }
-            return children;
-          }
-        };
-
         var child = new this.Component(options);
         if (this.keepAlive) {
           this.cache[this.Component.cid] = child;
         }
+        // there needs a way for watching nested components' mutation,
+        // so put them to props.children
+        child.$parent && child.$parent.props.children.push(child);
 
-        var parentDir = this.descriptor.parent;
-        if (parentDir) {
-          var index = parentDir.descriptor.children.indexOf(this);
-          this.bindVM(parentDir.childVM, child, index);
-        }
+        this.nestBuild(child._context, child);
+
         /* istanbul ignore if */
         if ('development' !== 'production' && this.el.hasAttribute('transition') && child._isFragment) {
           warn('Transitions will not work on a fragment instance. ' + 'Template: ' + child.$options.template, child);
@@ -6094,24 +6072,29 @@
     },
 
     /**
-     * Rebind the nested child to the new parent
+     * Deeply compile child node for creating nested components
      *
-     * @param {Vue} parent
-     * @param {Vue} child
-     * @param {Number|undefined} index the index in parent's children
+     * @param {Vue} context
+     * @param {Vue} host
      */
 
-    bindVM: function bindVM(parent, child, index) {
-      if (child && parent) {
-        child.$parent.$children.$remove(child);
-        child.$parent = parent;
+    nestBuild: function nestBuild(context, host) {
+      if (this.el.hasChildNodes()) {
+        var scope = host ? host._scope : this._scope;
+        var childNodes = toArray(this.el.childNodes);
+        var unlinks = [];
 
-        index = index >= 0 ? index : parent.$children.length;
-        parent.$children.$set(index, child);
-
-        if (parent.props.children) {
-          parent.props.children.$set(index, child);
+        for (var i = 0, l = childNodes.length; i < l; i++) {
+          var unlink = context.$compile(childNodes[i], host, scope, this._frag);
+          unlinks.push(unlink);
         }
+
+        this.nestUnlink = function () {
+          var i = unlinks.length;
+          while (i--) {
+            unlinks[i]();
+          }
+        };
       }
     },
 
@@ -6222,6 +6205,9 @@
 
     unbind: function unbind() {
       this.invalidatePending();
+      if (this.nestUnlink) {
+        this.nestUnlink();
+      }
       // Do not defer cleanup when unbinding
       this.unbuild();
       // destroy all keep-alive cached instances
@@ -6410,14 +6396,8 @@
       var childNodes = toArray(el.childNodes);
       // link
       var dirs = linkAndCapture(function compositeLinkCapturer() {
-        var nodeDir, childDirs;
-        if (nodeLinkFn) {
-          nodeDir = nodeLinkFn(vm, el, host, scope, frag);
-        }
-        if (childLinkFn) {
-          childDirs = childLinkFn(vm, childNodes, host, scope, frag);
-        }
-        linkDirective(nodeDir, childDirs);
+        if (nodeLinkFn) nodeLinkFn(vm, el, host, scope, frag);
+        if (childLinkFn) childLinkFn(vm, childNodes, host, scope, frag);
       }, vm);
       return makeUnlinkFn(vm, dirs);
     };
@@ -6809,52 +6789,21 @@
 
   function makeChildLinkFn(linkFns) {
     return function childLinkFn(vm, nodes, host, scope, frag) {
-      var node;
-      var nodeLinkFn;
-      var childrenLinkFn;
-      var nodeDirs = [];
+      var node, nodeLinkFn, childrenLinkFn;
       for (var i = 0, n = 0, l = linkFns.length; i < l; n++) {
         node = nodes[n];
         nodeLinkFn = linkFns[i++];
         childrenLinkFn = linkFns[i++];
         // cache childNodes before linking parent, fix #657
         var childNodes = toArray(node.childNodes);
-        var nodeDir, childDirs;
         if (nodeLinkFn) {
-          nodeDir = nodeLinkFn(vm, node, host, scope, frag);
-          nodeDir && nodeDirs.push(nodeDir);
+          nodeLinkFn(vm, node, host, scope, frag);
         }
         if (childrenLinkFn) {
-          childDirs = childrenLinkFn(vm, childNodes, host, scope, frag);
+          childrenLinkFn(vm, childNodes, host, scope, frag);
         }
-        linkDirective(nodeDir, childDirs);
       }
-      return nodeDirs;
     };
-  }
-
-  /**
-   * Link parent directive and child directives
-   *
-   * @param {Object} parentDir - parent directive
-   * @param {Array} childDirs - child directives
-   */
-
-  function linkDirective(parentDir, childDirs) {
-    if (!childDirs || !parentDir) {
-      return;
-    }
-    for (var i = 0, l = childDirs.length; i < l; i++) {
-      var childDir = childDirs[i];
-      if (!childDir.descriptor.parent) {
-        childDir.descriptor.parent = parentDir;
-
-        if (!parentDir.descriptor.children) {
-          parentDir.descriptor.children = [];
-        }
-        parentDir.descriptor.children.push(childDir);
-      }
-    }
   }
 
   /**
@@ -6902,9 +6851,9 @@
         if (ref) {
           defineReactive((scope || vm).$refs, ref, null);
         }
-        return vm._bindDir(descriptor, el, host, scope, frag);
+        vm._bindDir(descriptor, el, host, scope, frag);
       };
-      componentLinkFn.terminal = false; // continue to compile child components
+      componentLinkFn.terminal = true;
       return componentLinkFn;
     }
   }
@@ -7416,6 +7365,8 @@
       this._propsUnlinkFn = el && el.nodeType === 1 && props
       // props must be linked in proper scope if inside v-for
       ? compileAndLinkProps(this, el, props, this._scope) : null;
+      // init children property for storing nested child components
+      this.props.children = [];
       // observe props
       observe(this.props, this);
     };
@@ -8073,7 +8024,7 @@
           unwatchFns[i]();
         }
       }
-      if ('development' !== 'production' && this.el) {
+      if ('development' !== 'production' && this.el && this.el._vue_directives) {
         this.el._vue_directives.$remove(this);
       }
       this.vm = this.el = this._watcher = this._listeners = null;
@@ -8205,13 +8156,10 @@
      * @param {Vue} [host] - transclusion host component
      * @param {Object} [scope] - v-for scope
      * @param {Fragment} [frag] - owner fragment
-     * @return {Directive}
      */
 
     Vue.prototype._bindDir = function (descriptor, node, host, scope, frag) {
-      var dir = new Directive(descriptor, this, node, host, scope, frag);
-      this._directives.push(dir);
-      return dir;
+      this._directives.push(new Directive(descriptor, this, node, host, scope, frag));
     };
 
     /**
@@ -8263,7 +8211,7 @@
       if (parent && !parent._isBeingDestroyed) {
         parent.$children.$remove(this);
         // remove self from parent's props
-        parent.props.children && parent.props.children.$remove(this);
+        parent.props.children.$remove(this);
         // unregister ref (remove: true)
         this._updateRef(true);
       }
