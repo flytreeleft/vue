@@ -207,8 +207,8 @@ export default function (Vue) {
           }
         }
         if (
-            type === 'component' &&
-            isPlainObject(definition)
+          type === 'component' &&
+          isPlainObject(definition)
         ) {
           definition.name = id
           definition = Vue.extend(definition)

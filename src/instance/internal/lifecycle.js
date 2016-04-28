@@ -140,13 +140,12 @@ export default function (Vue) {
    * @param {Vue} [host] - transclusion host component
    * @param {Object} [scope] - v-for scope
    * @param {Fragment} [frag] - owner fragment
-   * @return {Directive}
    */
 
   Vue.prototype._bindDir = function (descriptor, node, host, scope, frag) {
-    var dir = new Directive(descriptor, this, node, host, scope, frag)
-    this._directives.push(dir)
-    return dir
+    this._directives.push(
+      new Directive(descriptor, this, node, host, scope, frag)
+    )
   }
 
   /**
@@ -198,7 +197,7 @@ export default function (Vue) {
     if (parent && !parent._isBeingDestroyed) {
       parent.$children.$remove(this)
       // remove self from parent's props
-      parent.props.children && parent.props.children.$remove(this);
+      parent.props.children.$remove(this);
       // unregister ref (remove: true)
       this._updateRef(true)
     }

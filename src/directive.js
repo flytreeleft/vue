@@ -327,7 +327,7 @@ Directive.prototype._teardown = function () {
         unwatchFns[i]()
       }
     }
-    if (process.env.NODE_ENV !== 'production' && this.el) {
+    if (process.env.NODE_ENV !== 'production' && this.el && this.el._vue_directives) {
       this.el._vue_directives.$remove(this)
     }
     this.vm = this.el = this._watcher = this._listeners = null

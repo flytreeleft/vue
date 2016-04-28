@@ -1,6 +1,6 @@
 import {
   _toString,
-  replace
+  remove
 } from '../../util/index'
 
 export default {
@@ -13,13 +13,24 @@ export default {
 
   update (value) {
     if (value && value._isVue) {
-      var el = value.$el
-      // TODO maybe there is a more smart way to get the element of the real vue wrapped by fragment?
-      // TODO fire attached event
-      if (value._isFragment) {
-        el = value.$children[0].$el
+      var vm = value
+      var oldVm = this.el.__vue__
+      if (oldVm === vm) {
+        return
       }
-      replace(this.el, el)
+
+      var el = this.el
+      var cb = function () {
+        if (oldVm) {
+          // just remove from DOM, do not destroy instance
+          oldVm.$remove()
+        } else {
+          remove(el)
+        }
+      }
+      // NOTE: the vm will be attached in vFor directive
+      vm.$before(el, cb)
+      this.el = vm.$el
     } else {
       this.el[this.attr] = _toString(value)
     }

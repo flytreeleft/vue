@@ -76,14 +76,8 @@ export function compile (el, options, partial) {
     var childNodes = toArray(el.childNodes)
     // link
     var dirs = linkAndCapture(function compositeLinkCapturer () {
-      var nodeDir, childDirs
-      if (nodeLinkFn) {
-        nodeDir = nodeLinkFn(vm, el, host, scope, frag)
-      }
-      if (childLinkFn) {
-        childDirs = childLinkFn(vm, childNodes, host, scope, frag)
-      }
-      linkDirective(nodeDir, childDirs)
+      if (nodeLinkFn) nodeLinkFn(vm, el, host, scope, frag)
+      if (childLinkFn) childLinkFn(vm, childNodes, host, scope, frag)
     }, vm)
     return makeUnlinkFn(vm, dirs)
   }
@@ -124,7 +118,7 @@ function linkAndCapture (linker, vm) {
  * @param {Object} b
  */
 
-function directiveComparator(a, b) {
+function directiveComparator (a, b) {
   a = a.descriptor.def.priority || DEFAULT_PRIORITY
   b = b.descriptor.def.priority || DEFAULT_PRIORITY
   return a > b ? -1 : a === b ? 0 : 1
@@ -499,50 +493,19 @@ function compileNodeList (nodeList, options) {
 
 function makeChildLinkFn (linkFns) {
   return function childLinkFn (vm, nodes, host, scope, frag) {
-    var node
-    var nodeLinkFn
-    var childrenLinkFn
-    var nodeDirs = []
+    var node, nodeLinkFn, childrenLinkFn
     for (var i = 0, n = 0, l = linkFns.length; i < l; n++) {
       node = nodes[n]
       nodeLinkFn = linkFns[i++]
       childrenLinkFn = linkFns[i++]
       // cache childNodes before linking parent, fix #657
       var childNodes = toArray(node.childNodes)
-      var nodeDir, childDirs
       if (nodeLinkFn) {
-        nodeDir = nodeLinkFn(vm, node, host, scope, frag)
-        nodeDir && nodeDirs.push(nodeDir)
+        nodeLinkFn(vm, node, host, scope, frag)
       }
       if (childrenLinkFn) {
-        childDirs = childrenLinkFn(vm, childNodes, host, scope, frag)
+        childrenLinkFn(vm, childNodes, host, scope, frag)
       }
-      linkDirective(nodeDir, childDirs)
-    }
-    return nodeDirs
-  }
-}
-
-/**
- * Link parent directive and child directives
- *
- * @param {Object} parentDir - parent directive
- * @param {Array} childDirs - child directives
- */
-
-function linkDirective (parentDir, childDirs) {
-  if (!childDirs || !parentDir) {
-    return
-  }
-  for (var i = 0, l = childDirs.length; i < l; i++) {
-    var childDir = childDirs[i]
-    if (!childDir.descriptor.parent) {
-      childDir.descriptor.parent = parentDir
-
-      if (!parentDir.descriptor.children) {
-        parentDir.descriptor.children = []
-      }
-      parentDir.descriptor.children.push(childDir)
     }
   }
 }
@@ -592,9 +555,9 @@ function checkComponent (el, options) {
       if (ref) {
         defineReactive((scope || vm).$refs, ref, null)
       }
-      return vm._bindDir(descriptor, el, host, scope, frag)
+      vm._bindDir(descriptor, el, host, scope, frag)
     }
-    componentLinkFn.terminal = false // continue to compile child components
+    componentLinkFn.terminal = true
     return componentLinkFn
   }
 }

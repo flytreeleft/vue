@@ -7,7 +7,8 @@ import {
   hyphenate,
   warn,
   cancellable,
-  extend
+  extend,
+  toArray
 } from '../../util/index'
 
 export default {
@@ -230,37 +231,16 @@ export default {
       if (extraOptions) {
         extend(options, extraOptions)
       }
-
-      var childDirs = this.descriptor.children || []
-      if (!options.props) {
-        options.props = {}
-      }
-      options.props.children = {
-        type: Array,
-        'default': function () {
-          var children = []
-          for (var i = 0, l = childDirs.length; i < l; i++) {
-            var child = childDirs[i]
-            if (child.childVM) {
-              child.bindVM(this, child.childVM, i)
-
-              children.push(child.childVM)
-            }
-          }
-          return children
-        }
-      }
-
       var child = new this.Component(options)
       if (this.keepAlive) {
         this.cache[this.Component.cid] = child
       }
+      // there needs a way for watching nested components' mutation,
+      // so put them to props.children
+      child.$parent && child.$parent.props.children.push(child)
 
-      var parentDir = this.descriptor.parent
-      if (parentDir) {
-        var index = parentDir.descriptor.children.indexOf(this)
-        this.bindVM(parentDir.childVM, child, index)
-      }
+      this.nestBuild(child._context, child)
+
       /* istanbul ignore if */
       if (process.env.NODE_ENV !== 'production' &&
           this.el.hasAttribute('transition') &&
@@ -276,23 +256,30 @@ export default {
   },
 
   /**
-   * Rebind the nested child to the new parent
+   * Deeply compile child node for creating nested components
    *
-   * @param {Vue} parent
-   * @param {Vue} child
-   * @param {Number|undefined} index the index in parent's children
+   * @param {Vue} context
+   * @param {Vue} host
    */
 
-  bindVM (parent, child, index) {
-    if (child && parent) {
-      child.$parent.$children.$remove(child)
-      child.$parent = parent
+  nestBuild (context, host) {
+    if (this.el.hasChildNodes()) {
+      var scope = host
+        ? host._scope
+        : this._scope
+      var childNodes = toArray(this.el.childNodes)
+      var unlinks = [];
 
-      index = index >= 0 ? index : parent.$children.length
-      parent.$children.$set(index, child)
+      for (var i = 0, l = childNodes.length; i < l; i++) {
+        var unlink = context.$compile(childNodes[i], host, scope, this._frag)
+        unlinks.push(unlink)
+      }
 
-      if (parent.props.children) {
-        parent.props.children.$set(index, child)
+      this.nestUnlink = function () {
+        var i = unlinks.length
+        while (i--) {
+          unlinks[i]()
+        }
       }
     }
   },
@@ -404,6 +391,9 @@ export default {
 
   unbind () {
     this.invalidatePending()
+    if (this.nestUnlink) {
+      this.nestUnlink()
+    }
     // Do not defer cleanup when unbinding
     this.unbuild()
     // destroy all keep-alive cached instances

@@ -216,8 +216,6 @@ const vFor = {
         // new instance, or still in stagger.
         // insert with updated stagger index.
         this.insert(frag, insertionIndex++, prevEl, inDocument)
-        // call vue instance attached event
-        this.callAttach(frag)
       }
       frag.reused = frag.fresh = false
     }
@@ -263,6 +261,15 @@ const vFor = {
     }
     var frag = this.factory.create(host, scope, this._frag)
     frag.forId = this.id
+    // change _frag to the actual fragment for attach/detach correctly
+    if (isObject(value) && value._isVue) {
+      var vm = value;
+      if (vm._frag !== frag) {
+        vm._frag && vm._frag.children.$remove(vm)
+        vm._frag = frag
+        frag.children.push(vm)
+      }
+    }
     this.cacheFrag(value, frag, index, key)
     return frag
   },
@@ -335,26 +342,6 @@ const vFor = {
       setTimeout(op, staggerAmount)
     } else {
       frag.before(prevEl.nextSibling)
-    }
-  },
-
-  /**
-   * Call child component attached.
-   *
-   * If the `frag` isn't a vue component,
-   * it will do nothing.
-   *
-   * NOTE: In nested components, the child component
-   * will be attached when executing v-for.
-   *
-   * @param {Fragment} frag
-   */
-
-  callAttach: function (frag) {
-    var raw = frag.raw;
-    if (isObject(raw) && hasOwn(raw, '_isVue') &&
-        raw._isVue && !raw._isAttached && inDoc(raw.$el)) {
-      raw._callHook('attached')
     }
   },
 

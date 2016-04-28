@@ -71,6 +71,8 @@ export default function (Vue) {
       // props must be linked in proper scope if inside v-for
       ? compileAndLinkProps(this, el, props, this._scope)
       : null
+    // init children property for storing nested child components
+    this.props.children = []
     // observe props
     observe(this.props, this)
   }

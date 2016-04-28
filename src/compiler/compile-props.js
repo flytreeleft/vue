@@ -305,7 +305,7 @@ export function initProp (vm, prop, value) {
 
 export function updateProp (vm, prop, value) {
   processPropValue(vm, prop, value, value => {
-    vm.props[prop.path] = value
+    prop.path !== 'children' && (vm.props[prop.path] = value)
   })
 }
 
