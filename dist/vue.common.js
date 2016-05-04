@@ -6054,8 +6054,24 @@ var component = {
         this.cache[this.Component.cid] = child;
       }
       // there needs a way for watching nested components' mutation,
-      // so put them to props.children
-      child.$parent && child.$parent.props.children.push(child);
+      // so put them into props.children
+      if (child.$parent) {
+        var _parent = child.$parent;
+        var children = _parent.props.children;
+        var scope = this._scope;
+        // in an inline v-for, the child should be put to the location
+        // which the $index of scope represents.
+        // if this isn't in v-for or scope.$index is the tail of props.children,
+        // just push the child into the props.children of parent.
+        if (scope && scope.$index < children.length) {
+          children.splice(scope.$index, 0, child);
+          // NOTE: the child has been put into the $children of parent,
+          // so create new array to keep the right order.
+          _parent.$children = [].concat(children);
+        } else {
+          children.push(child);
+        }
+      }
 
       this.nestBuild(child._context, child);
 
