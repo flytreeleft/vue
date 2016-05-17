@@ -197,7 +197,7 @@ export function hyphenate (str) {
 }
 
 /**
- * Converts hyphen/underscore/slash delimitered names into
+ * Converts hyphen/underscore/slash/dot delimitered names into
  * camelized classNames.
  *
  * e.g. my-component => MyComponent
