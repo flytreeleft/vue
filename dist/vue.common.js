@@ -185,7 +185,7 @@ function hyphenate(str) {
 }
 
 /**
- * Converts hyphen/underscore/slash delimitered names into
+ * Converts hyphen/underscore/slash/dot delimitered names into
  * camelized classNames.
  *
  * e.g. my-component => MyComponent
@@ -10043,8 +10043,8 @@ function installGlobalAPI (Vue) {
     }
     var name = extendOptions.name || Super.options.name;
     if (process.env.NODE_ENV !== 'production') {
-      if (!/^[a-zA-Z][\w-]*$/.test(name)) {
-        warn('Invalid component name: "' + name + '". Component names ' + 'can only contain alphanumeric characaters and the hyphen.');
+      if (!/^[a-zA-Z][\.\w-]*$/.test(name)) {
+        warn('Invalid component name: "' + name + '". Component names ' + 'can only contain alphanumeric characaters, dot and the hyphen.');
         name = null;
       }
     }
