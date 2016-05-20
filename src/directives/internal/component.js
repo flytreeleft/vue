@@ -363,6 +363,10 @@ export default {
           self.pendingRemovalCb()
           self.pendingRemovalCb = null
         }
+        // The removed component maybe is a transclusion host
+        // in the nested components, so record the new host
+        // to make sure 'v-for' directive can replace the old one.
+        child._replaced = self.childVM
       })
     } else if (cb) {
       cb()

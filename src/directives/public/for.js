@@ -84,6 +84,13 @@ const vFor = {
   },
 
   update (data) {
+    // If the host is in nested components, when it is destroyed,
+    // this directive will still refers to it.
+    // So, we need to update this._host to the new one.
+    if (this._host && this._host._replaced) {
+      this._host = this._host._replaced
+    }
+
     this.diff(data)
     this.updateRef()
     this.updateModel()
