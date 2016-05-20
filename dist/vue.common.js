@@ -4341,6 +4341,13 @@ var vFor = {
   },
 
   update: function update(data) {
+    // If the host is in nested components, when it is destroyed,
+    // this directive will still refers to it.
+    // So, we need to update this._host to the new one.
+    if (this._host && this._host._replaced) {
+      this._host = this._host._replaced;
+    }
+
     this.diff(data);
     this.updateRef();
     this.updateModel();
@@ -6197,6 +6204,10 @@ var component = {
           self.pendingRemovalCb();
           self.pendingRemovalCb = null;
         }
+        // The removed component maybe is a transclusion host
+        // in the nested components, so record the new host
+        // to make sure 'v-for' directive can replace the old one.
+        child._replaced = self.childVM;
       });
     } else if (cb) {
       cb();
