@@ -6126,23 +6126,26 @@
      */
 
     nestBuild: function nestBuild(context, host) {
-      if (this.el.hasChildNodes()) {
-        var scope = host ? host._scope : this._scope;
-        var childNodes = toArray(this.el.childNodes);
-        var unlinks = [];
-
-        for (var i = 0, l = childNodes.length; i < l; i++) {
-          var unlink = context.$compile(childNodes[i], host, scope, this._frag);
-          unlinks.push(unlink);
-        }
-
-        this.nestUnlink = function () {
-          var i = unlinks.length;
-          while (i--) {
-            unlinks[i]();
-          }
-        };
+      if (!this.el.hasChildNodes()) {
+        return;
       }
+
+      var el = cloneNode(this.el);
+      var scope = host ? host._scope : this._scope;
+      var childNodes = toArray(el.childNodes);
+      var unlinks = [];
+
+      for (var i = 0, l = childNodes.length; i < l; i++) {
+        var unlink = context.$compile(childNodes[i], host, scope, this._frag);
+        unlinks.push(unlink);
+      }
+
+      this.nestUnlink = function () {
+        var i = unlinks.length;
+        while (i--) {
+          unlinks[i]();
+        }
+      };
     },
 
     /**
