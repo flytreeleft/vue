@@ -7684,15 +7684,15 @@
 
     function registerCallbacks(vm, action, hash) {
       if (!hash) return;
-      var handlers, key, i, j;
-      for (key in hash) {
-        handlers = hash[key];
-        if (isArray(handlers)) {
-          for (i = 0, j = handlers.length; i < j; i++) {
-            register(vm, action, key, handlers[i]);
+      var handlers, keys, i, j, k, l;
+      for (keys in hash) {
+        handlers = [].concat(hash[keys]);
+        keys = keys.trim().split(/\s+/);
+
+        for (i = 0, j = handlers.length; i < j; i++) {
+          for (k = 0, l = keys.length; k < l; k++) {
+            register(vm, action, keys[k], handlers[i]);
           }
-        } else {
-          register(vm, action, key, handlers);
         }
       }
     }
