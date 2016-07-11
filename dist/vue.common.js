@@ -2634,6 +2634,17 @@ var prefixes = ['-webkit-', '-moz-', '-ms-'];
 var camelPrefixes = ['Webkit', 'Moz', 'ms'];
 var importantRE = /!important;?$/;
 var propCache = Object.create(null);
+// Exclude the following css properties for adding unit 'px'
+var cssNumber = {
+  'fillOpacity': true,
+  'fontWeight': true,
+  'lineHeight': true,
+  'opacity': true,
+  'orphans': true,
+  'widows': true,
+  'zIndex': true,
+  'zoom': true
+};
 
 var testEl = null;
 
@@ -2675,7 +2686,7 @@ var vStyle = {
     prop = normalize(prop);
     if (!prop) return; // unsupported prop
     // cast possible numbers/booleans into strings
-    if (value != null) value += '';
+    if (value != null) value = addUnit(prop, value);
     if (value) {
       var isImportant = importantRE.test(value) ? 'important' : '';
       if (isImportant) {
@@ -2746,6 +2757,23 @@ function prefix(prop) {
       };
     }
   }
+}
+
+/**
+ * Add default unit 'px' to number value.
+ *
+ * @param {Object} prop
+ * @param {String/Number} value
+ * @return {String}
+ */
+function addUnit(prop, value) {
+  if (typeof value === 'number' && value !== 0 && !cssNumber[prop.camel]) {
+    value += 'px';
+  } else {
+    value += '';
+  }
+
+  return value;
 }
 
 // xlink
