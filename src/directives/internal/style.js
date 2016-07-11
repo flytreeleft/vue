@@ -10,6 +10,17 @@ const prefixes = ['-webkit-', '-moz-', '-ms-']
 const camelPrefixes = ['Webkit', 'Moz', 'ms']
 const importantRE = /!important;?$/
 const propCache = Object.create(null)
+// Exclude the following css properties for adding unit 'px'
+const cssNumber = {
+  'fillOpacity': true,
+  'fontWeight': true,
+  'lineHeight': true,
+  'opacity': true,
+  'orphans': true,
+  'widows': true,
+  'zIndex': true,
+  'zoom': true
+}
 
 let testEl = null
 
@@ -51,7 +62,7 @@ export default {
     prop = normalize(prop)
     if (!prop) return // unsupported prop
     // cast possible numbers/booleans into strings
-    if (value != null) value += ''
+    if (value != null) value = addUnit(prop, value)
     if (value) {
       var isImportant = importantRE.test(value)
         ? 'important'
@@ -127,4 +138,25 @@ function prefix (prop) {
       }
     }
   }
+}
+
+/**
+ * Add default unit 'px' to number value.
+ *
+ * @param {Object} prop
+ * @param {String/Number} value
+ * @return {String}
+ */
+function addUnit(prop, value) {
+  if (
+    typeof value === 'number' &&
+      value !== 0 &&
+      !cssNumber[prop.camel]
+  ) {
+    value += 'px'
+  } else {
+    value += ''
+  }
+
+  return value
 }
