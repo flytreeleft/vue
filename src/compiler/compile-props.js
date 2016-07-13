@@ -175,9 +175,9 @@ function mergeProps (el, propOptions) {
       name = name.replace(/^(v-bind:|:)([^\.]+).*$/, '$2')
     }
 
-    if (!disallowedMergedAttrRE.test(name) &&
-        !options[name]) {
-      options[name] = {}
+    if (!disallowedMergedAttrRE.test(name)) {
+      name = camelize(name)
+      options[name] = options[name] || {}
     }
   }
   return options
