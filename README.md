@@ -15,6 +15,7 @@
 - Separate `props` from `data`, the component properties can be and only be accessed like `props.anyProp`. Note that the property and state can be the same name, they have no impact on each other
 - Pre-define properties in `props` isn't needed, any properties in component tag can be accessed by `props`, meanwhile, `v-bind` is still supported
 - Support nest component in host, the nested components will be stored in `props.children` of the parent. The nested components can be rendered like `v-for="child in props.children"` in the template of parent
+- Spread `v-bind` and `v-on` as the `props` of real component when they are used in dynamic component
 
 ## Supporting Vue.js
 
