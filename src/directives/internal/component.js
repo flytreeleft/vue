@@ -8,8 +8,14 @@ import {
   warn,
   cancellable,
   extend,
-  toArray
+  toArray,
+  getAttr,
+  isArray,
+  isObject,
+  isLiteral
 } from '../../util/index'
+
+import { parseDirective } from '../../parsers/directive';
 
 export default {
 
@@ -62,6 +68,14 @@ export default {
       if (this.descriptor.ref) {
         this.el.removeAttribute('v-ref:' + hyphenate(this.descriptor.ref))
       }
+      // Spread `v-bind`, `v-on` object as the properties of real component.
+      var self = this;
+      ['v-bind', 'v-on'].forEach(function (attr) {
+        if (self.el.hasAttribute(attr)) {
+          var value = getAttr(self.el, attr)
+          self.spreadAttrs(attr, value)
+        }
+      });
       // if static, build right now.
       if (this.literal) {
         this.setComponent(this.expression)
@@ -83,6 +97,37 @@ export default {
     if (!this.literal) {
       this.setComponent(value)
     }
+  },
+
+  /**
+   * Spread object as attributes of the current element.
+   *
+   * `<component is="panel" v-bind="{name: 'Panel', title: 'Info'}"/>`
+   * will be equal to `<panel v-bind:name="'Panel'" v-bind:title="'Info'"/>`
+   *
+   * @param {String} prefix e.g. `v-bind` or `v-on`.
+   * @param {String} value The expression which presents object value.
+   */
+
+  spreadAttrs: function(prefix, value) {
+    if (!value) return
+
+    var parsed = parseDirective(value)
+    var raw = value
+
+    value = parsed.expression
+    if (!isLiteral(value) || parsed.filters) {
+      value = (this._scope || this.vm).$get(value)
+    }
+    if (!isObject(value) || isArray(value)) {
+      warn('Literal or array can not be spread.', this.vm)
+      return
+    }
+
+    var self = this
+    Object.keys(value).forEach(function (key) {
+      self.el.setAttribute(prefix + ':' + key, raw + '.' + key)
+    })
   },
 
   /**
