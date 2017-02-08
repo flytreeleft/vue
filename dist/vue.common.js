@@ -6060,7 +6060,7 @@ var component = {
 
     var self = this;
     Object.keys(value).forEach(function (key) {
-      self.el.setAttribute(prefix + ':' + key, raw + '.' + key);
+      self.el.setAttribute(prefix + ':' + hyphenate(key), raw + '.' + key);
     });
   },
 
