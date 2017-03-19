@@ -124,9 +124,12 @@ export default {
       return
     }
 
+    var attrRE = /^[\w-]+[\w\d-]*$/
     var self = this
-    Object.keys(value).forEach(function (key) {
-      self.el.setAttribute(prefix + ':' + hyphenate(key), raw + '.' + key)
+    Object.keys(value).filter(function (key) {
+      return attrRE.test(key)
+    }).forEach(function (key) {
+      self.el.setAttribute(prefix + ':' + hyphenate(key), raw + '[\'' + key + '\']')
     })
   },
 
