@@ -4640,15 +4640,6 @@
       }
       var frag = this.factory.create(host, scope, this._frag);
       frag.forId = this.id;
-      // change _frag to the actual fragment for attach/detach correctly
-      if (isObject(value) && value._isVue) {
-        var vm = value;
-        if (vm._frag !== frag) {
-          vm._frag && vm._frag.children.$remove(vm);
-          vm._frag = frag;
-          frag.children.push(vm);
-        }
-      }
       this.cacheFrag(value, frag, index, key);
       return frag;
     },
@@ -5075,7 +5066,15 @@
             remove(el);
           }
         };
-        // NOTE: the vm will be attached in vFor directive
+        // change _frag to the actual fragment for attach/detach correctly
+        // details:
+        // - src/directives/public/for.js: vFor.insert -> `frag.before(target)`
+        // - src/fragment/fragment.js: Fragment.singleBefore -> `this.callHook(attach)`
+        if (this._frag && vm._frag !== this._frag) {
+          vm._frag && vm._frag.children.$remove(vm);
+          vm._frag = this._frag;
+          this._frag.children.push(vm);
+        }
         vm.$before(el, cb);
         this.el = vm.$el;
       } else {
@@ -6958,13 +6957,13 @@
    * Build a function that processes a textNode.
    *
    * @param {Array<Object>} tokens
-   * @param {DocumentFragment} frag
+   * @param {DocumentFragment} fragNode
    */
 
-  function makeTextNodeLinkFn(tokens, frag) {
-    return function textNodeLinkFn(vm, el, host, scope) {
-      var fragClone = frag.cloneNode(true);
-      var childNodes = toArray(fragClone.childNodes);
+  function makeTextNodeLinkFn(tokens, fragNode) {
+    return function textNodeLinkFn(vm, el, host, scope, frag) {
+      var fragNodeClone = fragNode.cloneNode(true);
+      var childNodes = toArray(fragNodeClone.childNodes);
       var token, value, node;
       for (var i = 0, l = tokens.length; i < l; i++) {
         token = tokens[i];
@@ -6979,11 +6978,11 @@
               node.data = _toString(value);
             }
           } else {
-            vm._bindDir(token.descriptor, node, host, scope);
+            vm._bindDir(token.descriptor, node, host, scope, frag);
           }
         }
       }
-      replace(el, fragClone);
+      replace(el, fragNodeClone);
     };
   }
 
