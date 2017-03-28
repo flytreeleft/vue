@@ -28,7 +28,15 @@ export default {
           remove(el)
         }
       }
-      // NOTE: the vm will be attached in vFor directive
+      // change _frag to the actual fragment for attach/detach correctly
+      // details:
+      // - src/directives/public/for.js: vFor.insert -> `frag.before(target)`
+      // - src/fragment/fragment.js: Fragment.singleBefore -> `this.callHook(attach)`
+      if (this._frag && vm._frag !== this._frag) {
+        vm._frag && vm._frag.children.$remove(vm)
+        vm._frag = this._frag
+        this._frag.children.push(vm)
+      }
       vm.$before(el, cb)
       this.el = vm.$el
     } else {

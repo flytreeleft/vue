@@ -269,15 +269,6 @@ const vFor = {
     }
     var frag = this.factory.create(host, scope, this._frag)
     frag.forId = this.id
-    // change _frag to the actual fragment for attach/detach correctly
-    if (isObject(value) && value._isVue) {
-      var vm = value;
-      if (vm._frag !== frag) {
-        vm._frag && vm._frag.children.$remove(vm)
-        vm._frag = frag
-        frag.children.push(vm)
-      }
-    }
     this.cacheFrag(value, frag, index, key)
     return frag
   },

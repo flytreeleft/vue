@@ -452,13 +452,13 @@ function processTextToken (token, options) {
  * Build a function that processes a textNode.
  *
  * @param {Array<Object>} tokens
- * @param {DocumentFragment} frag
+ * @param {DocumentFragment} fragNode
  */
 
-function makeTextNodeLinkFn (tokens, frag) {
-  return function textNodeLinkFn (vm, el, host, scope) {
-    var fragClone = frag.cloneNode(true)
-    var childNodes = toArray(fragClone.childNodes)
+function makeTextNodeLinkFn (tokens, fragNode) {
+  return function textNodeLinkFn (vm, el, host, scope, frag) {
+    var fragNodeClone = fragNode.cloneNode(true)
+    var childNodes = toArray(fragNodeClone.childNodes)
     var token, value, node
     for (var i = 0, l = tokens.length; i < l; i++) {
       token = tokens[i]
@@ -473,11 +473,11 @@ function makeTextNodeLinkFn (tokens, frag) {
             node.data = _toString(value)
           }
         } else {
-          vm._bindDir(token.descriptor, node, host, scope)
+          vm._bindDir(token.descriptor, node, host, scope, frag)
         }
       }
     }
-    replace(el, fragClone)
+    replace(el, fragNodeClone)
   }
 }
 
